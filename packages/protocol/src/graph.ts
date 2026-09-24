@@ -6,7 +6,7 @@ import { z } from 'zod'
  * colours and the frontier are derived, never supplied.
  */
 
-export const DecisionStatusSchema = z.enum(['open', 'resolved', 'blocked'])
+export const DecisionStatusSchema = z.enum(['open', 'in_progress', 'resolved', 'blocked'])
 export type DecisionStatus = z.infer<typeof DecisionStatusSchema>
 
 export const MAX_GRAPH_NODES = 200
@@ -23,7 +23,8 @@ export const DecisionNodeSchema = z.object({
 		),
 	title: z.string().min(1).max(120).describe('Short name of the decision, ideally a few words.'),
 	status: DecisionStatusSchema.describe(
-		'open: still to decide; resolved: decided; blocked: cannot be decided yet.',
+		'open: still to decide; in_progress: being decided right now (e.g. a claimed ticket), off the frontier; ' +
+			'resolved: decided; blocked: cannot be decided yet.',
 	),
 	note: z
 		.string()

@@ -82,6 +82,20 @@ describe('graph.render', () => {
 		expect(node('e').props.color).toBe('red')
 	})
 
+	it('draws an in-progress node amber with a solid outline, off the frontier (ADR 0018)', async () => {
+		const withClaim: FrontierGraph = {
+			nodes: [
+				...graph.nodes.filter((n) => n.id !== 'c'),
+				{ id: 'c', title: 'Auth', status: 'in_progress' },
+			],
+			edges: graph.edges,
+		}
+		await render(withClaim)
+		expect(node('c').props.color).toBe('yellow')
+		expect(node('c').props.dash).toBe('solid')
+		expect(node('c').props.fill).not.toBe('solid')
+	})
+
 	it('highlights the frontier and only the frontier', async () => {
 		await render(graph)
 		const highlighted = ['a', 'b', 'c', 'd', 'e'].filter((id) => node(id).props.fill === 'solid')

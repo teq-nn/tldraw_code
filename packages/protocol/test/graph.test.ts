@@ -47,11 +47,23 @@ describe('computeFrontier', () => {
 		expect(computeFrontier(g)).toEqual([])
 	})
 
-	it('excludes resolved and blocked nodes even without blockers', () => {
+	it('excludes resolved, blocked and in-progress nodes even without blockers', () => {
 		const g = graph([
 			{ id: 'a', title: 'A', status: 'resolved' },
 			{ id: 'b', title: 'B', status: 'blocked' },
+			{ id: 'c', title: 'C', status: 'in_progress' },
 		])
+		expect(computeFrontier(g)).toEqual([])
+	})
+
+	it('keeps dependents of an in-progress node off the frontier until it is resolved', () => {
+		const g = graph(
+			[
+				{ id: 'a', title: 'A', status: 'in_progress' },
+				{ id: 'b', title: 'B', status: 'open' },
+			],
+			[{ from: 'a', to: 'b' }],
+		)
 		expect(computeFrontier(g)).toEqual([])
 	})
 

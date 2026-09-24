@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: accepted, amended by ADR 0018 (claimed tickets are in_progress)
 ---
 
 # Wayfinder tickets to decision nodes: status, edges and frontier
@@ -18,7 +18,7 @@ Each child ticket of the map is one decision node (`id` = the issue number, `tit
 | Closed (any other reason) | `resolved`, note = its one-line gist from the map's **Decisions so far** (if listed) |
 | Open, with an open blocker that is not a ticket of the map | `blocked`, note "Waiting on "<blocker title>"" |
 | Open, labelled `blocked` or `needs-info` | `blocked`, note "Labelled <label>" |
-| Open and assigned (claimed by a session) | `blocked`, note "Claimed by @<login>" |
+| Open and assigned (claimed by a session) | `in_progress`, note "Claimed by @<login>" (was `blocked` before ADR 0018) |
 | Open otherwise | `open` |
 
 - **Edges**: every blocker that is a ticket on the graph becomes a dependency edge blocker → dependent. Blockers are the union of native dependencies (read only for tickets whose `issue_dependencies_summary` reports any) and the body conventions: a `Blocked by: #n, #n` line and a `## Blocked by` section listing `#n` (the `to-tickets` format this repo's own issues use). A blocker left out of the graph adds no edge: it is closed or off the route, so it no longer gates.

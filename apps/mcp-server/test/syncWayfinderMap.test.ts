@@ -77,7 +77,7 @@ describe('sync_wayfinder_map', () => {
 		expect(renders()[0]?.payload).toMatchObject({
 			nodes: expect.arrayContaining([
 				{ id: '2', title: 'Which database?', status: 'resolved', note: 'Postgres, managed' },
-				{ id: '5', title: 'Hosting provider', status: 'blocked', note: 'Claimed by @ana' },
+				{ id: '5', title: 'Hosting provider', status: 'in_progress', note: 'Claimed by @ana' },
 			]),
 		})
 	})
@@ -91,7 +91,7 @@ describe('sync_wayfinder_map', () => {
 		expect(text).toContain(
 			'the first is next): "Schema per tenant?" (#3), "Cache layer" (#8), "Connection pooling" (#11).',
 		)
-		expect(text).toContain('- #5 "Hosting provider": blocked (claimed by @ana)')
+		expect(text).toContain('- #5 "Hosting provider": in_progress (claimed by @ana)')
 		expect(text).toContain('- #7 "Use a graph database?": closed as not planned')
 		expect(text).toContain('call sync_wayfinder_map again')
 	})
@@ -110,7 +110,7 @@ describe('sync_wayfinder_map', () => {
 			frontier: string[]
 		}
 		expect(second.nodes.find((n) => n.id === '3')?.status).toBe('resolved')
-		expect(second.nodes.find((n) => n.id === '4')?.status).toBe('blocked')
+		expect(second.nodes.find((n) => n.id === '4')?.status).toBe('in_progress')
 		expect(second.frontier).toEqual(['8', '11'])
 	})
 

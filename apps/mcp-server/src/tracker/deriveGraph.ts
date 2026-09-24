@@ -22,7 +22,7 @@ import { decisionGists, outOfScopeRefs } from './markdown'
  * - otherwise closed: `resolved`, noted with its gist from Decisions so far;
  * - open with an open blocker outside the map: `blocked` ("Waiting on ...");
  * - open and labelled `blocked` or `needs-info`: `blocked`;
- * - open and assigned (claimed by a session): `blocked` ("Claimed by @...");
+ * - open and assigned (claimed by a session): `in_progress` ("Claimed by @...", ADR 0018);
  * - otherwise open: `open`.
  * A blocker that is a ticket of the map becomes a dependency edge; the
  * frontier is then the open nodes whose blockers are all resolved, which is
@@ -141,7 +141,7 @@ function statusOf(
 	if (label) return { status: 'blocked', note: `Labelled ${label}`, reason: `label ${label}` }
 	if (ticket.assignees.length > 0) {
 		const who = ticket.assignees.map((a) => `@${a}`).join(', ')
-		return { status: 'blocked', note: `Claimed by ${who}`, reason: `claimed by ${who}` }
+		return { status: 'in_progress', note: `Claimed by ${who}`, reason: `claimed by ${who}` }
 	}
 	return { status: 'open', reason: 'open, unclaimed' }
 }

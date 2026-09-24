@@ -45,7 +45,7 @@ describe('deriving the frontier graph from a wayfinder map', () => {
 			'2': 'resolved', // closed
 			'3': 'open',
 			'4': 'open', // open, but its blocker #3 is open: off the frontier through the edge
-			'5': 'blocked', // claimed
+			'5': 'in_progress', // claimed (ADR 0018)
 			'6': 'blocked', // needs-info
 			'8': 'open', // its only blocker was closed as not planned
 			'9': 'blocked', // open blocker outside the map
@@ -57,6 +57,16 @@ describe('deriving the frontier graph from a wayfinder map', () => {
 		expect(nodeById(derived, '6')?.note).toBe('Labelled needs-info')
 		expect(nodeById(derived, '9')?.note).toBe('Waiting on "Load test results"')
 		expect(nodeById(derived, '3')?.note).toBeUndefined()
+	})
+
+	it('shows a claimed ticket as in progress unless something else blocks it (ADR 0018)', async () => {
+		const github = new FakeGitHub('acme/plan', storageMapIssues())
+		github.update(6, { assignees: ['ana'] }) // claimed, but also labelled needs-info
+		const derived = await derive(github)
+		expect(nodeById(derived, '5')).toMatchObject({ status: 'in_progress', note: 'Claimed by @ana' })
+		expect(nodeById(derived, '6')).toMatchObject({ status: 'blocked', note: 'Labelled needs-info' })
+		// #13 waits on the claimed #5 through an edge, so it stays off the frontier.
+		expect(derived.frontier).not.toContain('13')
 	})
 
 	it('leaves out tickets closed as not planned and tickets ruled out of scope', async () => {

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { DecisionStatusSchema } from './graph'
 
 /**
  * Canvas perception (ADR 0008, ADR 0009): what `read_canvas` sees, and the
@@ -93,7 +94,7 @@ export const CanvasShapeSchema = z.object({
 	/** Decision node id (`decision_node`) or edge key `from->to` (`dependency`). */
 	decisionId: z.string().optional(),
 	/** Decision status, derived from the node's colour. */
-	status: z.enum(['open', 'resolved', 'blocked']).optional(),
+	status: DecisionStatusSchema.optional(),
 	onFrontier: z.boolean().optional(),
 	/** Question card: options, recommended index, and the answer if given. */
 	question: z

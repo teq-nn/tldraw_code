@@ -24,11 +24,18 @@ import { layoutGraph } from './layout'
 type RenderPayload = CanvasCommandPayload<'graph.render'>
 type RenderResult = CanvasCommandResult<'graph.render'>
 
-/** Status colours of decision nodes (ADR 0005). */
+/** Status colours of decision nodes (ADR 0005, ADR 0018): in progress is amber. */
 export const STATUS_COLOR: Record<DecisionStatus, TLDefaultColorStyle> = {
 	open: 'blue',
+	in_progress: 'yellow',
 	resolved: 'green',
 	blocked: 'red',
+}
+
+/** Outline per status: blocked dashed, in progress and the frontier solid, the rest hand-drawn. */
+function nodeDash(status: DecisionStatus, onFrontier: boolean): TLGeoShape['props']['dash'] {
+	if (status === 'blocked') return 'dashed'
+	return status === 'in_progress' || onFrontier ? 'solid' : 'draw'
 }
 
 export const NODE_WIDTH = 220
@@ -108,7 +115,7 @@ export function renderGraph(editor: Editor, payload: RenderPayload): RenderResul
 				labelColor: 'black',
 				// The frontier stands out: solid fill and a heavy outline; the rest stays light.
 				fill: onFrontier ? 'solid' : 'semi',
-				dash: node.status === 'blocked' ? 'dashed' : onFrontier ? 'solid' : 'draw',
+				dash: nodeDash(node.status, onFrontier),
 				size: onFrontier ? 'l' : 'm',
 				font: 'sans',
 				align: 'middle',

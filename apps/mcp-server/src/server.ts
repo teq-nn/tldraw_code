@@ -133,7 +133,8 @@ export function createMcpServer(bridge: CanvasBridge, options: McpServerOptions 
 			title: 'Render frontier graph',
 			description:
 				'Draw or update the decision graph on the canvas. Pass the whole graph every time: ' +
-				'decision nodes (stable id, short title, status open/resolved/blocked, optional one-line note) ' +
+				'decision nodes (stable id, short title, status open/in_progress/resolved/blocked, optional one-line ' +
+				'note; in_progress = being worked on right now, not on the frontier) ' +
 				'and dependency edges {from, to} meaning "from must be resolved before to". ' +
 				'Layout, status colours and the frontier (open nodes whose blockers are all resolved, highlighted) ' +
 				'are computed for you. Nodes and edges are matched by id: existing shapes are updated, ' +
@@ -164,8 +165,9 @@ export function createMcpServer(bridge: CanvasBridge, options: McpServerOptions 
 				'Draw a wayfinder map from the issue tracker (GitHub Issues) on the canvas: each child ticket of ' +
 				'the map issue becomes a decision node, each blocking link a dependency edge, and the frontier ' +
 				'(open, unblocked, unclaimed tickets) is highlighted. Status: closed ticket = resolved (note: its ' +
-				"gist from the map's Decisions so far); open ticket with an open blocker outside the map, a " +
-				'blocked/needs-info label or an assignee = blocked; other open tickets = open; tickets closed as ' +
+				"gist from the map's Decisions so far); open ticket with an assignee (claimed) = in_progress; open " +
+				'ticket with an open blocker outside the map or a blocked/needs-info label = blocked (these win over ' +
+				'the assignee); other open tickets = open; tickets closed as ' +
 				'not planned or listed under Out of scope are left out. The tickets stay the source of truth: ' +
 				'call this at the start of (or when resuming) a session on a map, and again after every change ' +
 				'to its tickets, so the canvas shows the tracker. Replaces the graph drawn by render_graph.',

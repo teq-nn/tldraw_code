@@ -43,7 +43,7 @@ _Avoid_: notification
 ### Session domain (from the spec, #1)
 
 **Decision node**:
-A shape on the canvas standing for one wayfinder ticket or grilling decision, with a status of open, resolved or blocked.
+A shape on the canvas standing for one wayfinder ticket or grilling decision, with a status of open (blue), in progress (amber), resolved (green) or blocked (red).
 _Avoid_: ticket shape, card
 
 **Dependency**:
@@ -130,9 +130,13 @@ _Avoid_: task, story, card
 Reading a wayfinder map's tickets from the tracker and drawing the frontier graph derived from them (`sync_wayfinder_map`, ADR 0012, ADR 0013). One way only: the canvas never writes back to the tracker.
 _Avoid_: import, refresh, two-way sync
 
+**In progress**:
+The status of a decision being decided right now, e.g. a claimed ticket. Drawn amber; off the frontier, and it keeps its dependents off it until resolved (ADR 0018).
+_Avoid_: active, current, working
+
 **Claimed**:
-A ticket assigned to the dev whose session is working on it. Off the frontier, drawn as blocked ("Claimed by @login").
-_Avoid_: taken, locked, in progress
+A ticket assigned to the dev whose session is working on it. Drawn in progress ("Claimed by @login"), unless something else blocks it.
+_Avoid_: taken, locked
 
 **Off the route**:
 A ticket of the map that is not on the graph: closed as not planned or duplicate, or ruled out of scope on the map. It no longer gates its dependents.

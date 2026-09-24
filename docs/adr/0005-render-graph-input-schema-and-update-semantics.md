@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: accepted, amended by ADR 0018 (fourth status in_progress)
 ---
 
 # `render_graph` input schema, frontier and update semantics
