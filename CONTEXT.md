@@ -19,7 +19,7 @@ The WebSocket link between the MCP server and the one active canvas tab.
 _Avoid_: socket, channel, sync
 
 **Canvas tool**:
-An MCP tool Claude calls to act on or read the canvas (e.g. `render_graph`, `ask`, `read_canvas`).
+An MCP tool Claude calls to act on or read the canvas (e.g. `render_graph`, `ask`, `compare`, `read_canvas`).
 _Avoid_: action, function
 
 ### Bridge protocol
@@ -94,6 +94,28 @@ _Avoid_: interview, round (the terminal skill's batch of questions)
 What `ask` returns when the user has not answered within the timeout (10 minutes). Not an error: the session goes on and the card stays open.
 _Avoid_: timeout error, failure
 
+### Diagrams and comparisons
+
+**Diagram**:
+A structure or flow Claude draws with `render_diagram` as native shapes in a frame: nodes and arrows laid out in the frontier graph's style. Not a decision node graph: it has no status and no frontier.
+_Avoid_: chart, figure, drawing (that is the user's)
+
+**Diagram spec**:
+The JSON graph a diagram is drawn from: nodes `{ id, label, look? }` and edges `{ from, to, label? }`. The only accepted format; no Mermaid (ADR 0014).
+_Avoid_: Mermaid, definition, source
+
+**Comparison**:
+2 or 3 alternatives shown side by side by `compare`, each in its own frame with one shared layout, their differences highlighted, and a question card below asking which to take (ADR 0015). Keyed by an id, usually that of the decision node it settles.
+_Avoid_: diff view, variants view
+
+**Alternative**:
+One item of a comparison: a label (its frame title and answer button), an optional caption and a diagram spec.
+_Avoid_: option (that is a button on a question card), variant
+
+**Difference**:
+A node or edge of an alternative that is not the same in all alternatives of its comparison: missing from one of them, or with another label or look. Matched by node id and by `from->to`; drawn in orange.
+_Avoid_: change, delta
+
 ### Tracker (wayfinder)
 
 **Wayfinder map**:
@@ -131,7 +153,7 @@ Who put a shape on the canvas: Claude (through a canvas tool) or the user. Claud
 _Avoid_: author, creator
 
 **Annotation**:
-A user shape on or next to one of Claude's shapes, read as the user's comment on it. Its **anchor** is that Claude shape, found by overlap first, then proximity (ADR 0008).
+A user shape on or next to one of Claude's shapes, read as the user's comment on it. Its **anchor** is that Claude shape (a decision node, question card, diagram node or diagram frame), found by overlap first, then proximity (ADR 0008, ADR 0015).
 _Avoid_: markup, feedback shape
 
 **Canvas activity**:
