@@ -37,7 +37,7 @@ The canvas's answer to one command, either ok with a payload or failed with an e
 _Avoid_: response, reply
 
 **Event**:
-An unsolicited envelope, e.g. the canvas's `hello` or, later, a user's answer.
+An unsolicited envelope, e.g. the canvas's `hello` or `ask.answered` carrying a user's answer.
 _Avoid_: notification
 
 ### Session domain (from the spec, #1)
@@ -67,8 +67,24 @@ The optional one-line label under a decision node's title, e.g. the answer a res
 _Avoid_: description, comment
 
 **Question card**:
-A shape showing one short question with 2 to 4 answer buttons and Claude's recommendation marked.
+A shape showing one short question with 2 to 4 answer buttons, Claude's recommendation marked, and a "Keep grilling" button; created by `ask`. Only one exists on the canvas at a time (ADR 0007).
 _Avoid_: prompt, dialog, poll
+
+**Open question**:
+The question card an `ask` is waiting on, or that timed out and can still be answered. At most one at a time; asking the same question again re-attaches to it, a different question replaces it (ADR 0006).
+_Avoid_: pending prompt, active card
+
+**Answer**:
+What the user did on the open question card: chose an option, chose "Keep grilling", or stuck a sticky note next to it (a note answer). Returned to Claude as the `ask` tool result.
+_Avoid_: reply, response (that is the bridge's result)
+
+**Keep grilling**:
+The extra option on every question card meaning "do not decide yet, dig deeper into this question". Never passed by Claude as one of the options.
+_Avoid_: skip, later
+
+**No answer yet**:
+What `ask` returns when the user has not answered within the timeout (10 minutes). Not an error: the session goes on and the card stays open.
+_Avoid_: timeout error, failure
 
 **Prototype frame**:
 A shape that shows a self-contained HTML prototype in a sandboxed iframe.
