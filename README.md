@@ -29,6 +29,8 @@ The main tool is `render_graph`: Claude passes the whole frontier graph (decisio
 
 To put a question to the user, Claude calls `ask` with one short question, 2 to 4 options and its recommendation (one of the options). A question card appears below the graph with the recommendation marked and an extra "Keep grilling" button; the tool call blocks until you click a button or stick a sticky note next to the card (its text becomes the answer). After 10 minutes without an answer `ask` returns "no answer yet" and the card stays open; Claude asks again with the same arguments to keep waiting, and an answer you gave meanwhile comes back at once. Only one question is open at a time. Details: [ADR 0006](docs/adr/0006-ask-blocking-long-poll-with-timeout.md) (blocking and timeout), [ADR 0007](docs/adr/0007-question-card-shape-and-answer-channels.md) (card and answers).
 
+To see the canvas, Claude calls `read_canvas` with an optional `region`: `"all"` (default), `"viewport"` (what you see), `"question"` (the question card and its surroundings) or a page box `{ x, y, w, h }`. It gets the shapes in that region (decision nodes with status, the question card with its answer, and your sticky notes, drawings, texts and arrows, each linked to the decision node or question card it is on or next to) plus a PNG screenshot, since shape data alone does not carry the meaning of a sketch. Pass `screenshot: false` for shape data only. Every other tool result ends with a line like "Canvas activity since your last read_canvas: the user added 1 sticky note, 1 drawing", and the MCP server's instructions tell Claude to read the canvas before each question and whenever that line appears, so it notices what you draw between its steps. Details: [ADR 0008](docs/adr/0008-read-canvas-shape-data-plus-screenshot.md) (what a read contains), [ADR 0009](docs/adr/0009-canvas-context-at-every-step.md) (context at every step).
+
 Without Claude Code, `pnpm smoke ["label"]` spawns the MCP server over stdio exactly like Claude Code does, waits up to 30 s for the canvas tab to connect, and calls `canvas_smoke_test`.
 
 Configuration:
@@ -41,7 +43,7 @@ Configuration:
 ## Development
 
 ```sh
-pnpm test        # vitest: protocol, frontier and question schema, MCP tools (incl. ask) against a fake canvas, canvas bridge client, command handlers, graph layout, question card and answer watcher
+pnpm test        # vitest: protocol, frontier and question schema, MCP tools (incl. ask, read_canvas and the activity digest) against a fake canvas, canvas bridge client, command handlers, graph layout, question card and answer watcher, canvas reads and activity tracking
 pnpm typecheck   # tsc in every package
 pnpm lint        # biome (lint + format check); `pnpm format` fixes
 pnpm build       # production build of the canvas

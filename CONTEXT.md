@@ -86,6 +86,28 @@ _Avoid_: skip, later
 What `ask` returns when the user has not answered within the timeout (10 minutes). Not an error: the session goes on and the card stays open.
 _Avoid_: timeout error, failure
 
+### Perception
+
+**Canvas read**:
+What `read_canvas` returns for one region: the shapes in it with role, owner, text and bounds, plus a screenshot (ADR 0008).
+_Avoid_: snapshot, dump, canvas state
+
+**Region**:
+The part of the canvas a read covers: `all`, `viewport`, `question` (the question card and its surroundings) or a page box.
+_Avoid_: area, selection
+
+**Owner**:
+Who put a shape on the canvas: Claude (through a canvas tool) or the user. Claude's shapes have domain roles (decision node, dependency, question card); the user's are named by look (sticky note, drawing, ...).
+_Avoid_: author, creator
+
+**Annotation**:
+A user shape on or next to one of Claude's shapes, read as the user's comment on it. Its **anchor** is that Claude shape, found by overlap first, then proximity (ADR 0008).
+_Avoid_: markup, feedback shape
+
+**Canvas activity**:
+What the user added, changed or deleted since Claude's last canvas read. Reported as one line at the end of every canvas tool result, so Claude knows when to read again (ADR 0009).
+_Avoid_: diff, changelog
+
 **Prototype frame**:
 A shape that shows a self-contained HTML prototype in a sandboxed iframe.
 _Avoid_: preview, embed
