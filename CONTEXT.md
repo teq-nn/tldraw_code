@@ -59,7 +59,7 @@ The set of open decisions whose blockers are all resolved, i.e. what can be work
 _Avoid_: backlog, next steps
 
 **Frontier graph**:
-All decision nodes and dependencies of one session, as passed whole to `render_graph` and drawn on the canvas with the frontier highlighted (ADR 0005).
+All decision nodes and dependencies of one session, as passed whole to `render_graph` (or derived from a wayfinder map by a tracker sync) and drawn on the canvas with the frontier highlighted (ADR 0005).
 _Avoid_: tech tree, map, roadmap
 
 **Note**:
@@ -93,6 +93,28 @@ _Avoid_: interview, round (the terminal skill's batch of questions)
 **No answer yet**:
 What `ask` returns when the user has not answered within the timeout (10 minutes). Not an error: the session goes on and the card stays open.
 _Avoid_: timeout error, failure
+
+### Tracker (wayfinder)
+
+**Wayfinder map**:
+The issue on the tracker (labelled `wayfinder:map`) whose child issues are the tickets of one wayfinder effort; an index of decisions, not a store (`docs/agents/issue-tracker.md`).
+_Avoid_: epic, project, board
+
+**Ticket**:
+One child issue of a wayfinder map: a question whose resolution is a decision. The source of truth for its decision node when the graph comes from the tracker.
+_Avoid_: task, story, card
+
+**Tracker sync**:
+Reading a wayfinder map's tickets from the tracker and drawing the frontier graph derived from them (`sync_wayfinder_map`, ADR 0012, ADR 0013). One way only: the canvas never writes back to the tracker.
+_Avoid_: import, refresh, two-way sync
+
+**Claimed**:
+A ticket assigned to the dev whose session is working on it. Off the frontier, drawn as blocked ("Claimed by @login").
+_Avoid_: taken, locked, in progress
+
+**Off the route**:
+A ticket of the map that is not on the graph: closed as not planned or duplicate, or ruled out of scope on the map. It no longer gates its dependents.
+_Avoid_: cancelled, deleted, hidden
 
 ### Perception
 

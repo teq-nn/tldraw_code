@@ -35,6 +35,8 @@ With the canvas open and Claude Code running in the repo, ask for it: "grill me 
 3. After each answer it updates the graph: the decision turns green with your answer as an italic label, the answered card disappears ([ADR 0010](docs/adr/0010-answered-question-cards-collapse-into-the-graph.md)), and "Keep grilling" adds narrower decisions in front of the node.
 4. When the frontier is empty, a last card asks whether every decision is on the graph; confirming ends the session. The graph is the record.
 
+To pick up an interrupted session, ask Claude to continue it: for a wayfinder map it syncs the map from the tracker (`sync_wayfinder_map`), otherwise it rebuilds the graph from the decision nodes still on the canvas (`read_canvas`).
+
 The terminal only shows tool calls and a short status line; there is nothing to read there. Why it works this way: [ADR 0011](docs/adr/0011-canvas-grilling-skill.md).
 
 ## The canvas tools
@@ -45,6 +47,8 @@ To put a question to the user, Claude calls `ask` with one short question, 2 to 
 
 To see the canvas, Claude calls `read_canvas` with an optional `region`: `"all"` (default), `"viewport"` (what you see), `"question"` (the question card and its surroundings) or a page box `{ x, y, w, h }`. It gets the shapes in that region (decision nodes with status, the question card with its answer, and your sticky notes, drawings, texts and arrows, each linked to the decision node or question card it is on or next to) plus a PNG screenshot, since shape data alone does not carry the meaning of a sketch. Pass `screenshot: false` for shape data only. Every other tool result ends with a line like "Canvas activity since your last read_canvas: the user added 1 sticky note, 1 drawing", and the MCP server's instructions tell Claude to read the canvas before each question and whenever that line appears, so it notices what you draw between its steps. Details: [ADR 0008](docs/adr/0008-read-canvas-shape-data-plus-screenshot.md) (what a read contains), [ADR 0009](docs/adr/0009-canvas-context-at-every-step.md) (context at every step).
 
+To draw a wayfinder map from the issue tracker, Claude calls `sync_wayfinder_map` with the map issue (`12`, `"#12"`, `"owner/name#12"` or its URL; later calls may omit it and re-sync the same map). The MCP server reads the map's child tickets and their blocking links from GitHub Issues and renders them like `render_graph`: a closed ticket is a resolved node with its gist from the map's Decisions so far as note; an open ticket that is claimed (assigned), labelled `blocked` / `needs-info` or waiting on an open issue outside the map is blocked; other open tickets are open; tickets closed as not planned or listed under Out of scope are left out. The frontier is then exactly the tracker's: open, unblocked, unclaimed tickets. The tickets stay the source of truth: Claude records decisions on the tracker and syncs again, and the canvas follows. Resuming an interrupted session on a map is one sync. Details: [ADR 0012](docs/adr/0012-ticket-status-to-decision-node-mapping.md) (status mapping), [ADR 0013](docs/adr/0013-tracker-sync-in-the-mcp-server.md) (how the tracker is read).
+
 Without Claude Code, `pnpm smoke ["label"]` spawns the MCP server over stdio exactly like Claude Code does, waits up to 30 s for the canvas tab to connect, and calls `canvas_smoke_test`.
 
 Configuration:
@@ -53,11 +57,12 @@ Configuration:
 - `CANVAS_BRIDGE_PORT` (MCP server, default `4477`) and `VITE_CANVAS_BRIDGE_URL` (canvas, default `ws://127.0.0.1:4477`) move the bridge, e.g. to run two Claude Code sessions side by side.
 - Only one canvas tab is active at a time: opening a new tab takes over from the old one.
 - `pnpm mcp` runs the MCP server by hand (stdio; logs go to stderr).
+- Tracker sync (MCP server): the GitHub token is `GH_TOKEN`, else `GITHUB_TOKEN`, else your `gh` login (`gh auth token`); without one only public repositories can be read (60 requests per hour). The repository is the one named in the map argument, else `CANVAS_TRACKER_REPO` (`owner/name`), else the `origin` remote of the repo Claude Code runs in. `GITHUB_API_URL` targets GitHub Enterprise. Behind an HTTPS proxy, start Claude Code with `NODE_USE_ENV_PROXY=1` so the server's `fetch` uses it.
 
 ## Development
 
 ```sh
-pnpm test        # vitest: protocol, frontier and question schema, MCP tools (incl. ask, read_canvas and the activity digest) against a fake canvas, canvas bridge client, command handlers, graph layout, question card and answer watcher, canvas reads and activity tracking, collapsing answered cards, and the canvas-grilling skill against the registered tools
+pnpm test        # vitest: protocol, frontier and question schema, MCP tools (incl. ask, read_canvas and the activity digest) against a fake canvas, canvas bridge client, command handlers, graph layout, question card and answer watcher, canvas reads and activity tracking, collapsing answered cards, the tracker sync (ticket-to-node mapping, body conventions, `sync_wayfinder_map` against a fake GitHub), and the canvas-grilling skill against the registered tools
 pnpm typecheck   # tsc in every package
 pnpm lint        # biome (lint + format check); `pnpm format` fixes
 pnpm build       # production build of the canvas
