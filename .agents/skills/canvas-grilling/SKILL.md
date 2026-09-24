@@ -35,4 +35,11 @@ You hold the whole graph and pass all of it on every `render_graph` call.
 6. **Repeat** steps 2 to 5 until the frontier in the `render_graph` result is empty.
 7. **Close.** Ask "Is every decision you care about on the graph?" with the options "Yes, we're done" and "Something's missing". Anything but "Yes, we're done" opens new nodes: back to step 2. On "Yes, we're done", call `render_graph` once more (it removes the last card), then write one terminal line: "Grilling done: N decisions on the canvas."
 
+## Resuming
+
+When the user asks to continue an earlier session, rebuild the graph before step 2 instead of mapping it again:
+
+- **The decisions are tickets of a wayfinder map** on the issue tracker: call `sync_wayfinder_map` with the map's number or URL. The tickets are the source of truth and the graph is derived from them; record each answer on its ticket (`docs/agents/issue-tracker.md`, "Wayfinding operations") and sync again in place of `render_graph`.
+- **Otherwise**: call `read_canvas` and take the graph from the decision nodes on it (id, title, status, note) and its dependencies (`from->to`), then call `render_graph` with it.
+
 The session is done when the frontier is empty and the user has confirmed it on the canvas. Act on the decisions only after that confirmation.

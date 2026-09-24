@@ -5,6 +5,7 @@ import {
 	type CanvasCommandResult,
 	CanvasRegionSchema,
 	computeFrontier,
+	type FrontierGraph,
 	FrontierGraphSchema,
 	FrontierGraphShape,
 	KEEP_GRILLING_LABEL,
@@ -18,6 +19,13 @@ import { AskCoordinator, type AskOutcome, type AskTimings, DEFAULT_ASK_TIMINGS }
 import { type CanvasBridge, CanvasBridgeError } from './bridge'
 import { ToolInputError } from './errors'
 import { describeRead, fetchActivityNote } from './perception'
+import {
+	defaultTrackerOptions,
+	describeSync,
+	resolveMapTarget,
+	syncMap,
+	type TrackerOptions,
+} from './tracker'
 
 export const SERVER_NAME = 'tldraw-canvas'
 export const SERVER_VERSION = '0.0.0'
@@ -32,7 +40,10 @@ export const SERVER_INSTRUCTIONS =
 	'Call read_canvas (shape data plus a screenshot) before each new question, before interpreting an ' +
 	'answer that refers to the canvas (e.g. a sticky-note answer), and whenever a tool result reports ' +
 	'canvas activity. Treat a sticky note or drawing next to or on a question card or decision node as ' +
-	"the user's comment on it."
+	"the user's comment on it. " +
+	'When the session works a wayfinder map on the issue tracker, its tickets are the source of truth: ' +
+	'draw the map with sync_wayfinder_map instead of render_graph, and call it again after every change ' +
+	'you make to the tickets.'
 
 /**
  * Build the MCP server with all canvas tools registered. Transport-agnostic:
@@ -43,6 +54,8 @@ export interface McpServerOptions {
 	ask?: Partial<AskTimings>
 	/** Diagnostic logger; must not write to stdout. */
 	log?: (message: string) => void
+	/** Where `sync_wayfinder_map` reads tickets (ADR 0012); GitHub Issues of the current repo by default. */
+	tracker?: TrackerOptions
 }
 
 export function createMcpServer(bridge: CanvasBridge, options: McpServerOptions = {}): McpServer {
@@ -59,6 +72,22 @@ export function createMcpServer(bridge: CanvasBridge, options: McpServerOptions 
 		})
 	const askTimings = { ...DEFAULT_ASK_TIMINGS, ...options.ask }
 	const asks = new AskCoordinator(bridge, askTimings, options.log)
+	const tracker = options.tracker ?? defaultTrackerOptions()
+	/** The map the last sync read, so a later sync can omit it. */
+	let lastMap: Awaited<ReturnType<typeof resolveMapTarget>> | undefined
+
+	/** Draw a validated graph; collapses the answered question card with it (ADR 0010). */
+	const renderGraph = async (graph: FrontierGraph, frontier: string[]) => {
+		const collapseQuestion = asks.answeredQuestion()
+		const result = await bridge.request('graph.render', {
+			...graph,
+			frontier,
+			...(collapseQuestion ? { collapseQuestion } : {}),
+		})
+		// Collapsed now, or already gone (replaced or deleted by the user): either way done.
+		if (collapseQuestion) asks.forgetAnsweredQuestion(collapseQuestion)
+		return result
+	}
 
 	server.registerTool(
 		'canvas_smoke_test',
@@ -105,15 +134,60 @@ export function createMcpServer(bridge: CanvasBridge, options: McpServerOptions 
 				if (!parsed.success) throw new ToolInputError('invalid_graph', describeIssues(parsed.error))
 				const graph = parsed.data
 				const frontier = computeFrontier(graph)
-				const collapseQuestion = asks.answeredQuestion()
-				const result = await bridge.request('graph.render', {
-					...graph,
-					frontier,
-					...(collapseQuestion ? { collapseQuestion } : {}),
-				})
-				// Collapsed now, or already gone (replaced or deleted by the user): either way done.
-				if (collapseQuestion) asks.forgetAnsweredQuestion(collapseQuestion)
-				return describeRender(graph.nodes.length, graph.edges.length, frontier, result)
+				const result = await renderGraph(graph, frontier)
+				return [
+					describeRender(graph.nodes.length, graph.edges.length, result),
+					`Frontier: ${frontier.length > 0 ? frontier.join(', ') : '(empty)'}.`,
+				].join('\n')
+			}),
+	)
+
+	server.registerTool(
+		'sync_wayfinder_map',
+		{
+			title: 'Sync the wayfinder map to the canvas',
+			description:
+				'Draw a wayfinder map from the issue tracker (GitHub Issues) on the canvas: each child ticket of ' +
+				'the map issue becomes a decision node, each blocking link a dependency edge, and the frontier ' +
+				'(open, unblocked, unclaimed tickets) is highlighted. Status: closed ticket = resolved (note: its ' +
+				"gist from the map's Decisions so far); open ticket with an open blocker outside the map, a " +
+				'blocked/needs-info label or an assignee = blocked; other open tickets = open; tickets closed as ' +
+				'not planned or listed under Out of scope are left out. The tickets stay the source of truth: ' +
+				'call this at the start of (or when resuming) a session on a map, and again after every change ' +
+				'to its tickets, so the canvas shows the tracker. Replaces the graph drawn by render_graph.',
+			inputSchema: {
+				map: z
+					.union([z.number().int().positive(), z.string().min(1).max(300)])
+					.optional()
+					.describe(
+						'The map issue: number (12), "#12", "owner/name#12" or its GitHub URL. ' +
+							'Defaults to the map of the last sync.',
+					),
+				repo: z
+					.string()
+					.min(3)
+					.max(200)
+					.optional()
+					.describe(
+						'Repository "owner/name" of the map; defaults to the origin remote of the repo the server runs in.',
+					),
+			},
+		},
+		async ({ map, repo }) =>
+			withActivity(async () => {
+				if (map === undefined && !lastMap) {
+					throw new ToolInputError(
+						'invalid_map',
+						'No map synced yet in this session: pass the number or URL of the wayfinder map issue.',
+					)
+				}
+				const target =
+					map === undefined && lastMap ? lastMap : await resolveMapTarget(tracker, map ?? '', repo)
+				const synced = await syncMap(tracker, target)
+				lastMap = target
+				const { graph, frontier } = synced.derived
+				const result = await renderGraph(graph, frontier)
+				return describeSync(synced, describeRender(graph.nodes.length, graph.edges.length, result))
 			}),
 	)
 
@@ -246,13 +320,11 @@ function describeIssues(error: ZodError): string {
 function describeRender(
 	nodeCount: number,
 	edgeCount: number,
-	frontier: string[],
 	{ nodes, edges, questionCollapsed }: CanvasCommandResult<'graph.render'>,
 ): string {
 	const counts = (c: typeof nodes) => `${c.created} new, ${c.updated} updated, ${c.removed} removed`
 	return [
 		`Rendered ${nodeCount} decision nodes (${counts(nodes)}) and ${edgeCount} edges (${counts(edges)}).`,
-		`Frontier: ${frontier.length > 0 ? frontier.join(', ') : '(empty)'}.`,
 		...(questionCollapsed ? ['Removed the answered question card; the graph now shows it.'] : []),
 	].join('\n')
 }
