@@ -1,0 +1,41 @@
+@import url("tldraw/tldraw.css");
+
+* {
+	box-sizing: border-box;
+	overscroll-behavior: none;
+}
+
+.canvas-app {
+	position: fixed;
+	inset: 0;
+}
+
+.bridge-status {
+	pointer-events: all;
+	margin-top: 8px;
+	padding: 4px 10px;
+	border-radius: 999px;
+	font-family: var(--tl-font-sans, sans-serif);
+	font-size: 12px;
+	background: var(--tl-color-panel);
+	box-shadow: var(--tl-shadow-1);
+	color: var(--tl-color-text-1);
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.bridge-status__dot {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: hsl(0, 0%, 60%);
+}
+
+.bridge-status[data-status="connected"] .bridge-status__dot {
+	background: hsl(140, 60%, 42%);
+}
+
+.bridge-status[data-status="connecting"] .bridge-status__dot {
+	background: hsl(40, 90%, 50%);
+}

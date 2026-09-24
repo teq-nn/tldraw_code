@@ -1,0 +1,33 @@
+{
+	"name": "tldraw-code",
+	"private": true,
+	"type": "module",
+	"packageManager": "pnpm@10.33.0",
+	"engines": {
+		"node": ">=22"
+	},
+	"scripts": {
+		"dev": "pnpm --filter @tldraw-code/canvas dev",
+		"mcp": "tsx apps/mcp-server/src/main.ts",
+		"smoke": "tsx scripts/smoke.ts",
+		"build": "pnpm -r build",
+		"typecheck": "tsc -p tsconfig.json && pnpm -r typecheck",
+		"lint": "biome check .",
+		"format": "biome check --write .",
+		"test": "vitest run",
+		"check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.5.14",
+		"@modelcontextprotocol/sdk": "^1.30.1",
+		"@types/node": "^22.20.4",
+		"tsx": "^4.23.15",
+		"typescript": "~5.9.3",
+		"vitest": "^5.0.1"
+	},
+	"pnpm": {
+		"onlyBuiltDependencies": [
+			"esbuild"
+		]
+	}
+}
