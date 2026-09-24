@@ -151,3 +151,87 @@ describe('bridge port conflict', () => {
 		await second.stop()
 	})
 })
+
+describe('render_graph', () => {
+	const graph = {
+		nodes: [
+			{ id: 'a', title: 'Storage', status: 'resolved', note: 'SQLite' },
+			{ id: 'b', title: 'Schema', status: 'open' },
+			{ id: 'c', title: 'Hosting', status: 'blocked' },
+			{ id: 'd', title: 'Migrations', status: 'open' },
+		],
+		edges: [
+			{ from: 'a', to: 'b' },
+			{ from: 'b', to: 'd' },
+		],
+	}
+	const counts = { created: 0, updated: 0, removed: 0 }
+
+	async function renderGraph(args: Record<string, unknown>): Promise<CallToolResult> {
+		return (await client.callTool({ name: 'render_graph', arguments: args })) as CallToolResult
+	}
+
+	function answerRender(canvas: FakeCanvas) {
+		canvas.respondWith((command) =>
+			makeOkResult(command.id, {
+				nodes: { ...counts, created: 4 },
+				edges: { ...counts, created: 2 },
+			}),
+		)
+	}
+
+	it('is listed as a tool', async () => {
+		const { tools } = await client.listTools()
+		expect(tools.map((t) => t.name)).toContain('render_graph')
+	})
+
+	it('sends the graph with its computed frontier to the canvas', async () => {
+		const canvas = await connectCanvas()
+		answerRender(canvas)
+
+		const result = await renderGraph(graph)
+
+		expect(result.isError).toBeFalsy()
+		expect(canvas.commands).toHaveLength(1)
+		expect(canvas.commands[0]).toMatchObject({
+			name: 'graph.render',
+			payload: { nodes: graph.nodes, edges: graph.edges, frontier: ['b'] },
+		})
+		expect(textOf(result)).toContain('4 new')
+		expect(textOf(result)).toContain('Frontier: b.')
+	})
+
+	it('treats a missing edge list as no edges', async () => {
+		const canvas = await connectCanvas()
+		answerRender(canvas)
+		await renderGraph({ nodes: graph.nodes })
+		expect(canvas.commands[0]?.payload).toMatchObject({ edges: [], frontier: ['b', 'd'] })
+	})
+
+	it.each([
+		['an edge to an unknown node', { ...graph, edges: [{ from: 'a', to: 'zzz' }] }, 'zzz'],
+		['duplicate node ids', { ...graph, nodes: [...graph.nodes, graph.nodes[0]] }, 'duplicate'],
+		['a self-dependency', { ...graph, edges: [{ from: 'b', to: 'b' }] }, 'itself'],
+		['a duplicate edge', { ...graph, edges: [graph.edges[0], graph.edges[0]] }, 'duplicate edge'],
+	])('rejects %s without touching the canvas', async (_name, args, message) => {
+		const canvas = await connectCanvas()
+		const result = await renderGraph(args)
+		expect(result.isError).toBe(true)
+		expect(textOf(result)).toContain('invalid_graph')
+		expect(textOf(result)).toContain(message)
+		expect(canvas.commands).toHaveLength(0)
+	})
+
+	it('rejects an unknown status', async () => {
+		const canvas = await connectCanvas()
+		const result = await renderGraph({ nodes: [{ id: 'a', title: 'A', status: 'done' }] })
+		expect(result.isError).toBe(true)
+		expect(canvas.commands).toHaveLength(0)
+	})
+
+	it('reports a tool error when no canvas is connected', async () => {
+		const result = await renderGraph(graph)
+		expect(result.isError).toBe(true)
+		expect(textOf(result)).toContain('not_connected')
+	})
+})

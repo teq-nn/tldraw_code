@@ -1,4 +1,5 @@
 import { createShapeId, type Editor, toRichText } from 'tldraw'
+import { renderGraph } from '../graph/renderGraph'
 import type { CommandHandlers } from './BridgeClient'
 
 const SMOKE_SHAPE_SIZE = { w: 280, h: 120 }
@@ -24,5 +25,6 @@ export function createCommandHandlers(editor: Editor): CommandHandlers {
 			})
 			return { shapeId: id }
 		},
+		'graph.render': (payload) => renderGraph(editor, payload),
 	}
 }

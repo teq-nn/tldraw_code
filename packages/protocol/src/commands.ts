@@ -1,9 +1,16 @@
 import { z } from 'zod'
+import { DecisionNodeSchema, DependencyEdgeSchema } from './graph'
+
+const renderCounts = z.object({
+	created: z.number().int().nonnegative(),
+	updated: z.number().int().nonnegative(),
+	removed: z.number().int().nonnegative(),
+})
 
 /**
  * Catalog of commands the MCP server can send to the canvas. Each entry pairs
  * the payload schema with the schema of the result the canvas answers with.
- * Later tickets (render_graph, ask, read_canvas, ...) add entries here.
+ * Later tickets (ask, read_canvas, ...) add entries here.
  */
 export const canvasCommands = {
 	/** Smoke test: create one visible shape so the bridge can be verified end to end. */
@@ -13,6 +20,23 @@ export const canvasCommands = {
 		}),
 		result: z.object({
 			shapeId: z.string(),
+		}),
+	},
+	/**
+	 * Render or update the frontier graph (ADR 0005). The server has validated
+	 * the graph and computed the frontier; the canvas lays it out and draws it,
+	 * reusing the shapes of earlier renders.
+	 */
+	'graph.render': {
+		payload: z.object({
+			nodes: z.array(DecisionNodeSchema),
+			edges: z.array(DependencyEdgeSchema),
+			/** Ids of the nodes on the frontier, to be highlighted. */
+			frontier: z.array(z.string()),
+		}),
+		result: z.object({
+			nodes: renderCounts,
+			edges: renderCounts,
 		}),
 	},
 } as const

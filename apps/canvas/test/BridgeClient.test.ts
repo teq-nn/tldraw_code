@@ -39,6 +39,9 @@ function startClient(handlers?: Partial<CommandHandlers>, statuses: BridgeStatus
 		url,
 		handlers: {
 			'smoke.create_shape': ({ text }) => ({ shapeId: `shape:${text}` }),
+			'graph.render': () => {
+				throw new Error('not used in these tests')
+			},
 			...handlers,
 		},
 		onStatusChange: (s) => statuses.push(s),

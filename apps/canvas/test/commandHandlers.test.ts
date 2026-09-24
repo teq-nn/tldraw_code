@@ -1,34 +1,13 @@
 // @vitest-environment jsdom
-import {
-	createTLStore,
-	defaultAddFontsFromNode,
-	defaultBindingUtils,
-	defaultShapeUtils,
-	Editor,
-	type TLGeoShape,
-	type TLShapeId,
-	tipTapDefaultExtensions,
-} from 'tldraw'
+import type { Editor, TLGeoShape, TLShapeId } from 'tldraw'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createCommandHandlers } from '../src/bridge/commandHandlers'
+import { createTestEditor } from './createTestEditor'
 
 let editor: Editor
 
 beforeEach(() => {
-	editor = new Editor({
-		store: createTLStore({ shapeUtils: defaultShapeUtils, bindingUtils: defaultBindingUtils }),
-		shapeUtils: defaultShapeUtils,
-		bindingUtils: defaultBindingUtils,
-		tools: [],
-		getContainer: () => document.body,
-		// <Tldraw> normally supplies these; a bare Editor needs them to measure rich text.
-		options: {
-			text: {
-				addFontsFromNode: defaultAddFontsFromNode,
-				tipTapConfig: { extensions: tipTapDefaultExtensions },
-			},
-		},
-	})
+	editor = createTestEditor()
 })
 
 afterEach(() => editor.dispose())
