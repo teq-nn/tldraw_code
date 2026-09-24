@@ -1,0 +1,3 @@
+interface:
+  display_name: "Canvas Grilling"
+  short_description: "Grill a plan one question card at a time on the tldraw canvas"
