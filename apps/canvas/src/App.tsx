@@ -1,7 +1,10 @@
 import { useMemo, useState } from 'react'
 import { type Editor, type TLComponents, Tldraw } from 'tldraw'
+import { QuestionCardShapeUtil } from './ask/QuestionCardShapeUtil'
 import { useCanvasBridge } from './bridge/useCanvasBridge'
 import { BridgeStatusPill } from './components/BridgeStatusPill'
+
+const shapeUtils = [QuestionCardShapeUtil]
 
 /**
  * App shell derived from the tldraw Agent Starter Kit (MIT, see
@@ -19,7 +22,12 @@ export function App() {
 
 	return (
 		<div className="canvas-app">
-			<Tldraw persistenceKey="tldraw-code-canvas" components={components} onMount={setEditor} />
+			<Tldraw
+				persistenceKey="tldraw-code-canvas"
+				shapeUtils={shapeUtils}
+				components={components}
+				onMount={setEditor}
+			/>
 		</div>
 	)
 }

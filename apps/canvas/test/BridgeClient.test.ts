@@ -42,6 +42,9 @@ function startClient(handlers?: Partial<CommandHandlers>, statuses: BridgeStatus
 			'graph.render': () => {
 				throw new Error('not used in these tests')
 			},
+			'ask.show': () => {
+				throw new Error('not used in these tests')
+			},
 			...handlers,
 		},
 		onStatusChange: (s) => statuses.push(s),
@@ -140,5 +143,19 @@ describe('BridgeClient', () => {
 		socket.terminate()
 		await expect(second).resolves.toBeDefined()
 		await expect.poll(() => client?.getStatus()).toBe('connected')
+	})
+
+	it('sends events to the server once connected, and drops them before', async () => {
+		const connection = nextConnection()
+		const bridge = startClient()
+		const answer = { askId: 'q1', answer: { kind: 'keep_grilling' as const } }
+		expect(bridge.sendEvent('ask.answered', answer)).toBe(false)
+		await connection
+		await expect.poll(() => bridge.getStatus()).toBe('connected')
+
+		expect(bridge.sendEvent('ask.answered', answer)).toBe(true)
+		await expect
+			.poll(() => received)
+			.toContainEqual({ v: 1, kind: 'event', name: 'ask.answered', payload: answer })
 	})
 })

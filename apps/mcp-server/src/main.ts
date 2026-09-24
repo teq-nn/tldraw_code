@@ -19,7 +19,11 @@ try {
 	)
 }
 
-const server = createMcpServer(bridge)
+const askTimeoutMs = Number(process.env.CANVAS_ASK_TIMEOUT_MS)
+const server = createMcpServer(bridge, {
+	log,
+	ask: Number.isFinite(askTimeoutMs) && askTimeoutMs > 0 ? { timeoutMs: askTimeoutMs } : {},
+})
 await server.connect(new StdioServerTransport())
 log('MCP server ready on stdio')
 

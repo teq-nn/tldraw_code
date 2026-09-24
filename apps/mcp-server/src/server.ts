@@ -1,13 +1,21 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import {
+	type AskAnswer,
 	type CanvasCommandResult,
 	computeFrontier,
 	FrontierGraphSchema,
 	FrontierGraphShape,
+	KEEP_GRILLING_LABEL,
+	type Question,
+	QuestionSchema,
+	QuestionShape,
 } from '@tldraw-code/protocol'
+import type { ZodError } from 'zod'
 import { z } from 'zod'
+import { AskCoordinator, type AskOutcome, type AskTimings, DEFAULT_ASK_TIMINGS } from './ask'
 import { type CanvasBridge, CanvasBridgeError } from './bridge'
+import { ToolInputError } from './errors'
 
 export const SERVER_NAME = 'tldraw-canvas'
 export const SERVER_VERSION = '0.0.0'
@@ -16,8 +24,17 @@ export const SERVER_VERSION = '0.0.0'
  * Build the MCP server with all canvas tools registered. Transport-agnostic:
  * `main.ts` connects it to stdio, tests connect it to an in-memory transport.
  */
-export function createMcpServer(bridge: CanvasBridge): McpServer {
+export interface McpServerOptions {
+	/** Timeout and heartbeat of `ask` (ADR 0006). */
+	ask?: Partial<AskTimings>
+	/** Diagnostic logger; must not write to stdout. */
+	log?: (message: string) => void
+}
+
+export function createMcpServer(bridge: CanvasBridge, options: McpServerOptions = {}): McpServer {
 	const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION })
+	const askTimings = { ...DEFAULT_ASK_TIMINGS, ...options.ask }
+	const asks = new AskCoordinator(bridge, askTimings, options.log)
 
 	server.registerTool(
 		'canvas_smoke_test',
@@ -59,14 +76,7 @@ export function createMcpServer(bridge: CanvasBridge): McpServer {
 		async (args) =>
 			toToolResult(async () => {
 				const parsed = FrontierGraphSchema.safeParse(args)
-				if (!parsed.success) {
-					throw new InvalidInputError(
-						'invalid_graph',
-						parsed.error.issues
-							.map((issue) => `${issue.path.join('.')}: ${issue.message}`)
-							.join('; '),
-					)
-				}
+				if (!parsed.success) throw new ToolInputError('invalid_graph', describeIssues(parsed.error))
 				const graph = parsed.data
 				const frontier = computeFrontier(graph)
 				const result = await bridge.request('graph.render', { ...graph, frontier })
@@ -74,7 +84,88 @@ export function createMcpServer(bridge: CanvasBridge): McpServer {
 			}),
 	)
 
+	server.registerTool(
+		'ask',
+		{
+			title: 'Ask the user on the canvas',
+			description:
+				'Put one question to the user as a question card on the canvas and wait for the answer. ' +
+				'Give one short sentence, 2 to 4 short options and your recommendation (one of the options, ' +
+				`it is marked on the card). The card also has a "${KEEP_GRILLING_LABEL}" button, and the user ` +
+				'may answer freely with a sticky note next to the card. Blocks until the user answers ' +
+				`(up to ${formatDuration(askTimings.timeoutMs)}); then returns "no answer yet" and the card ` +
+				'stays open: call ask again with the same arguments to keep waiting. Only one question at a time; ' +
+				'a different question replaces the open card.',
+			inputSchema: QuestionShape,
+		},
+		async (args, extra) =>
+			toToolResult(async () => {
+				const parsed = QuestionSchema.safeParse(args)
+				if (!parsed.success) {
+					throw new ToolInputError('invalid_question', describeIssues(parsed.error))
+				}
+				const progressToken = extra._meta?.progressToken
+				const outcome = await asks.ask(parsed.data, {
+					signal: extra.signal,
+					onHeartbeat:
+						progressToken === undefined
+							? undefined
+							: (waitedMs) =>
+									void extra
+										.sendNotification({
+											method: 'notifications/progress',
+											params: {
+												progressToken,
+												progress: Math.round(waitedMs / 1000),
+												message: 'Waiting for the answer on the canvas',
+											},
+										})
+										.catch(() => {}),
+				})
+				return describeAskOutcome(parsed.data, outcome, askTimings.timeoutMs)
+			}),
+	)
+
 	return server
+}
+
+function describeAskOutcome(question: Question, outcome: AskOutcome, timeoutMs: number): string {
+	switch (outcome.kind) {
+		case 'answered':
+			return describeAnswer(question, outcome.answer)
+		case 'timeout':
+			return (
+				`No answer yet: the user has not answered within ${formatDuration(timeoutMs)}. ` +
+				'The question card stays open on the canvas. To keep waiting, call ask again with exactly ' +
+				'the same question, options and recommendation; an answer given in the meantime is returned at once.'
+			)
+		case 'cancelled':
+			return 'The ask call was cancelled. The question card stays open on the canvas.'
+	}
+}
+
+function describeAnswer(question: Question, answer: AskAnswer): string {
+	switch (answer.kind) {
+		case 'option': {
+			const option = question.options[answer.option]
+			const recommended = option === question.recommendation ? ' (your recommendation)' : ''
+			return `The user chose: ${option}${recommended}.`
+		}
+		case 'keep_grilling':
+			return `The user chose "${KEEP_GRILLING_LABEL}": do not decide yet. Dig deeper into this question, e.g. with a narrower follow-up question.`
+		case 'note':
+			return `The user answered with a sticky note instead of an option: "${answer.text}"`
+	}
+}
+
+function formatDuration(ms: number): string {
+	if (ms >= 60_000 && ms % 60_000 === 0) return `${ms / 60_000} min`
+	if (ms >= 1000 && ms % 1000 === 0) return `${ms / 1000} s`
+	return `${ms} ms`
+}
+
+function describeIssues(error: ZodError): string {
+	return error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('; ')
 }
 
 function describeRender(
@@ -90,22 +181,11 @@ function describeRender(
 	].join('\n')
 }
 
-/** Tool arguments passed the schema but are inconsistent (e.g. an edge to an unknown node). */
-class InvalidInputError extends Error {
-	constructor(
-		readonly code: string,
-		message: string,
-	) {
-		super(message)
-		this.name = 'InvalidInputError'
-	}
-}
-
 async function toToolResult(run: () => Promise<string>): Promise<CallToolResult> {
 	try {
 		return { content: [{ type: 'text', text: await run() }] }
 	} catch (error) {
-		if (error instanceof CanvasBridgeError || error instanceof InvalidInputError) {
+		if (error instanceof CanvasBridgeError || error instanceof ToolInputError) {
 			return {
 				isError: true,
 				content: [{ type: 'text', text: `[${error.code}] ${error.message}` }],

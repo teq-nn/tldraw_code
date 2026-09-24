@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { AskAnswerSchema, AskIdSchema, QuestionShape } from './ask'
 import { DecisionNodeSchema, DependencyEdgeSchema } from './graph'
 
 const renderCounts = z.object({
@@ -39,6 +40,26 @@ export const canvasCommands = {
 			edges: renderCounts,
 		}),
 	},
+	/**
+	 * Show the question card for `askId` (ADR 0006). Idempotent: if the card
+	 * already exists it is kept as is (including an answer given meanwhile).
+	 * Any other question card is removed, so only one is ever on the canvas.
+	 * Returns at once; the answer arrives later as an `ask.answered` event.
+	 */
+	'ask.show': {
+		payload: z.object({
+			askId: AskIdSchema,
+			question: QuestionShape.question,
+			options: QuestionShape.options,
+			/** Index of Claude's recommendation in `options`. */
+			recommendation: z.number().int().nonnegative(),
+		}),
+		result: z.object({
+			shapeId: z.string(),
+			/** False when an existing card for this askId was kept. */
+			created: z.boolean(),
+		}),
+	},
 } as const
 
 export type CanvasCommandName = keyof typeof canvasCommands
@@ -58,6 +79,15 @@ export const canvasEvents = {
 	/** Sent once right after the socket opens. */
 	hello: z.object({
 		client: z.literal('canvas'),
+	}),
+	/**
+	 * The user answered the question card `askId`. Sent when the answer is
+	 * given and again after every reconnect while the card is on the canvas;
+	 * the server ignores answers it no longer waits for.
+	 */
+	'ask.answered': z.object({
+		askId: AskIdSchema,
+		answer: AskAnswerSchema,
 	}),
 } as const
 

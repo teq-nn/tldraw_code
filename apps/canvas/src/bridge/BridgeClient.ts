@@ -3,6 +3,8 @@ import {
 	type CanvasCommandName,
 	type CanvasCommandPayload,
 	type CanvasCommandResult,
+	type CanvasEventName,
+	type CanvasEventPayload,
 	type CommandEnvelope,
 	canvasCommands,
 	encodeEnvelope,
@@ -71,6 +73,18 @@ export class BridgeClient {
 
 	getStatus(): BridgeStatus {
 		return this.status
+	}
+
+	/**
+	 * Send an unsolicited event (e.g. a user's answer) to the MCP server.
+	 * Returns false, dropping the event, when the bridge is not connected;
+	 * callers re-send what matters once the status turns 'connected'.
+	 */
+	sendEvent<N extends CanvasEventName>(name: N, payload: CanvasEventPayload<N>): boolean {
+		const socket = this.socket
+		if (this.status !== 'connected' || !socket || socket.readyState !== socket.OPEN) return false
+		socket.send(encodeEnvelope(makeEvent(name, payload)))
+		return true
 	}
 
 	private connect(): void {

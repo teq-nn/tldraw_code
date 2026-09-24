@@ -1,4 +1,5 @@
 import { createShapeId, type Editor, toRichText } from 'tldraw'
+import { showQuestion } from '../ask/showQuestion'
 import { renderGraph } from '../graph/renderGraph'
 import type { CommandHandlers } from './BridgeClient'
 
@@ -26,5 +27,6 @@ export function createCommandHandlers(editor: Editor): CommandHandlers {
 			return { shapeId: id }
 		},
 		'graph.render': (payload) => renderGraph(editor, payload),
+		'ask.show': (payload) => showQuestion(editor, payload),
 	}
 }

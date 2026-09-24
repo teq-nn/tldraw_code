@@ -47,6 +47,11 @@ export class FakeCanvas {
 		this.handler = handler
 	}
 
+	/** Send an unsolicited event to the server, as the canvas does when the user answers. */
+	sendEvent(name: string, payload: unknown): void {
+		this.socket.send(encodeEnvelope(makeEvent(name, payload)))
+	}
+
 	failWith(code: string, message: string): void {
 		this.respondWith((command) => makeErrorResult(command.id, { code, message }))
 	}
