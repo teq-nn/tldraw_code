@@ -153,13 +153,27 @@ Who put a shape on the canvas: Claude (through a canvas tool) or the user. Claud
 _Avoid_: author, creator
 
 **Annotation**:
-A user shape on or next to one of Claude's shapes, read as the user's comment on it. Its **anchor** is that Claude shape (a decision node, question card, diagram node or diagram frame), found by overlap first, then proximity (ADR 0008, ADR 0015).
+A user shape on or next to one of Claude's shapes, read as the user's comment on it. Its **anchor** is that Claude shape (a decision node, question card, diagram node, diagram frame or prototype frame), found by overlap first, then proximity (ADR 0008, ADR 0015, ADR 0017). On a prototype it also has a position inside the prototype, in prototype pixels.
 _Avoid_: markup, feedback shape
 
 **Canvas activity**:
 What the user added, changed or deleted since Claude's last canvas read. Reported as one line at the end of every canvas tool result, so Claude knows when to read again (ADR 0009).
 _Avoid_: diff, changelog
 
+### Prototypes
+
+**Prototype**:
+One self-contained HTML document (all CSS and JS inline) that Claude shows with `render_prototype` so the user can click through a UI alternative. Keyed by an id, by default a slug of its label. Untrusted: it only ever runs in the sandbox (ADR 0016).
+_Avoid_: mockup, page, preview
+
 **Prototype frame**:
-A shape that shows a self-contained HTML prototype in a sandboxed iframe.
-_Avoid_: preview, embed
+The shape that shows a prototype: a title bar with its label and caption over a sandboxed iframe (ADR 0017). Clickable while the select tool is idle; with any other tool the user draws or sticks notes on it.
+_Avoid_: preview, embed, iframe shape
+
+**Sandbox**:
+The fixed rights a prototype runs with: scripts and form events in an opaque origin, a CSP allowing inline code and `data:` assets only, no network, storage, pop-ups, dialogs or top navigation (ADR 0016).
+_Avoid_: jail, container
+
+**Iteration**:
+A new prototype Claude builds from the user's feedback on an earlier one (`iterationOf`), placed right next to it; the earlier one stays with its annotations as the record.
+_Avoid_: version, revision, update (that is re-rendering the same id in place)
