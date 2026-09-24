@@ -63,7 +63,7 @@ All decision nodes and dependencies of one session, as passed whole to `render_g
 _Avoid_: tech tree, map, roadmap
 
 **Note**:
-The optional one-line label under a decision node's title, e.g. the answer a resolved decision got.
+The optional one-line label under a decision node's title (in italics), e.g. the gist of the answer a resolved decision got.
 _Avoid_: description, comment
 
 **Question card**:
@@ -81,6 +81,14 @@ _Avoid_: reply, response (that is the bridge's result)
 **Keep grilling**:
 The extra option on every question card meaning "do not decide yet, dig deeper into this question". Never passed by Claude as one of the options.
 _Avoid_: skip, later
+
+**Collapse**:
+What happens to an answered question card once Claude has its answer: the next `render_graph` removes the card (and the sticky note that answered it), because the answer now lives as a decision node's note (ADR 0010).
+_Avoid_: dismiss, close, archive
+
+**Grilling session**:
+One run of the `canvas-grilling` skill: Claude maps the plan's decisions as a frontier graph, then asks one frontier decision at a time through `ask` and records each answer with `render_graph`, until the frontier is empty and the user confirms on the canvas (ADR 0011).
+_Avoid_: interview, round (the terminal skill's batch of questions)
 
 **No answer yet**:
 What `ask` returns when the user has not answered within the timeout (10 minutes). Not an error: the session goes on and the card stays open.
