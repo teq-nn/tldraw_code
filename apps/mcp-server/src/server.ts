@@ -3,6 +3,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import {
 	type AskAnswer,
 	type CanvasCommandResult,
+	CanvasRegionSchema,
 	computeFrontier,
 	FrontierGraphSchema,
 	FrontierGraphShape,
@@ -16,9 +17,22 @@ import { z } from 'zod'
 import { AskCoordinator, type AskOutcome, type AskTimings, DEFAULT_ASK_TIMINGS } from './ask'
 import { type CanvasBridge, CanvasBridgeError } from './bridge'
 import { ToolInputError } from './errors'
+import { describeRead, fetchActivityNote } from './perception'
 
 export const SERVER_NAME = 'tldraw-canvas'
 export const SERVER_VERSION = '0.0.0'
+
+/**
+ * Sent to the client on initialize; Claude Code puts it into Claude's context,
+ * so the perception loop (ADR 0009) holds without any skill being loaded.
+ */
+export const SERVER_INSTRUCTIONS =
+	'The user works with you on a shared tldraw canvas and answers there, not in the terminal. ' +
+	'The canvas changes between your tool calls: the user adds sticky notes, drawings and arrows. ' +
+	'Call read_canvas (shape data plus a screenshot) before each new question, before interpreting an ' +
+	'answer that refers to the canvas (e.g. a sticky-note answer), and whenever a tool result reports ' +
+	'canvas activity. Treat a sticky note or drawing next to or on a question card or decision node as ' +
+	"the user's comment on it."
 
 /**
  * Build the MCP server with all canvas tools registered. Transport-agnostic:
@@ -32,7 +46,17 @@ export interface McpServerOptions {
 }
 
 export function createMcpServer(bridge: CanvasBridge, options: McpServerOptions = {}): McpServer {
-	const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION })
+	const server = new McpServer(
+		{ name: SERVER_NAME, version: SERVER_VERSION },
+		{ instructions: SERVER_INSTRUCTIONS },
+	)
+	/** Tool result that ends with the canvas activity digest (ADR 0009). */
+	const withActivity = (run: () => Promise<string>) =>
+		toToolResult(async () => {
+			const text = await run()
+			const note = await fetchActivityNote(bridge)
+			return note ? `${text}\n\n${note}` : text
+		})
 	const askTimings = { ...DEFAULT_ASK_TIMINGS, ...options.ask }
 	const asks = new AskCoordinator(bridge, askTimings, options.log)
 
@@ -52,7 +76,7 @@ export function createMcpServer(bridge: CanvasBridge, options: McpServerOptions 
 			},
 		},
 		async ({ text }) =>
-			toToolResult(async () => {
+			withActivity(async () => {
 				const { shapeId } = await bridge.request('smoke.create_shape', {
 					text: text ?? 'Hello from Claude Code',
 				})
@@ -74,7 +98,7 @@ export function createMcpServer(bridge: CanvasBridge, options: McpServerOptions 
 			inputSchema: FrontierGraphShape,
 		},
 		async (args) =>
-			toToolResult(async () => {
+			withActivity(async () => {
 				const parsed = FrontierGraphSchema.safeParse(args)
 				if (!parsed.success) throw new ToolInputError('invalid_graph', describeIssues(parsed.error))
 				const graph = parsed.data
@@ -99,7 +123,7 @@ export function createMcpServer(bridge: CanvasBridge, options: McpServerOptions 
 			inputSchema: QuestionShape,
 		},
 		async (args, extra) =>
-			toToolResult(async () => {
+			withActivity(async () => {
 				const parsed = QuestionSchema.safeParse(args)
 				if (!parsed.success) {
 					throw new ToolInputError('invalid_question', describeIssues(parsed.error))
@@ -124,6 +148,48 @@ export function createMcpServer(bridge: CanvasBridge, options: McpServerOptions 
 				})
 				return describeAskOutcome(parsed.data, outcome, askTimings.timeoutMs)
 			}),
+	)
+
+	server.registerTool(
+		'read_canvas',
+		{
+			title: 'Read the canvas',
+			description:
+				'See what is on the canvas: shape data (role, owner, text, colour, bounds, and for the ' +
+				"user's shapes the decision node or question card they are on or next to) plus a PNG screenshot " +
+				'of the region. Shape data alone does not carry the meaning of a sketch; look at the screenshot. ' +
+				'Region: "all" (default, whole page), "viewport" (what the user sees), "question" (the question ' +
+				'card and its surroundings, where sticky-note answers and sketches next to it are), or a page box ' +
+				'{x, y, w, h} to zoom in (e.g. around a shape from an earlier read; screenshots are at most ' +
+				'1568 px wide, so read a smaller region to make out details). Resets the canvas activity digest.',
+			inputSchema: {
+				region: CanvasRegionSchema.optional().describe(
+					'"all" | "viewport" | "question" | {x, y, w, h} in page units. Defaults to "all".',
+				),
+				screenshot: z
+					.boolean()
+					.optional()
+					.describe('Attach a screenshot of the region (default true).'),
+			},
+		},
+		async ({ region = 'all', screenshot = true }) => {
+			try {
+				const result = await bridge.request('canvas.read', { region, screenshot })
+				const content: CallToolResult['content'] = [
+					{ type: 'text', text: describeRead(region, result) },
+				]
+				if (result.screenshot) {
+					content.push({
+						type: 'image',
+						data: result.screenshot.data,
+						mimeType: result.screenshot.mimeType,
+					})
+				}
+				return { content }
+			} catch (error) {
+				return toolError(error)
+			}
+		},
 	)
 
 	return server
@@ -185,12 +251,17 @@ async function toToolResult(run: () => Promise<string>): Promise<CallToolResult>
 	try {
 		return { content: [{ type: 'text', text: await run() }] }
 	} catch (error) {
-		if (error instanceof CanvasBridgeError || error instanceof ToolInputError) {
-			return {
-				isError: true,
-				content: [{ type: 'text', text: `[${error.code}] ${error.message}` }],
-			}
-		}
-		throw error
+		return toolError(error)
 	}
+}
+
+/** Report a bridge or input error to Claude as a tool error `[code] message`; rethrow anything else. */
+function toolError(error: unknown): CallToolResult {
+	if (error instanceof CanvasBridgeError || error instanceof ToolInputError) {
+		return {
+			isError: true,
+			content: [{ type: 'text', text: `[${error.code}] ${error.message}` }],
+		}
+	}
+	throw error
 }

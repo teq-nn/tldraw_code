@@ -111,6 +111,11 @@ export class QuestionCardShapeUtil extends ShapeUtil<QuestionCardShape> {
 		return <QuestionCard shape={shape} />
 	}
 
+	/** Plain SVG version of the card, so exports and `read_canvas` screenshots show it. */
+	override toSvg(shape: QuestionCardShape) {
+		return <QuestionCardSvg shape={shape} />
+	}
+
 	override getIndicatorPath(shape: QuestionCardShape) {
 		const path = new Path2D()
 		path.roundRect(0, 0, shape.props.w, shape.props.h, 12)
@@ -214,5 +219,98 @@ function QuestionCard({ shape }: { shape: QuestionCardShape }) {
 				</div>
 			</div>
 		</HTMLContainer>
+	)
+}
+
+const SVG_FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif'
+
+/** Split text into lines of at most `max` characters, at word boundaries. */
+function wrap(text: string, max: number): string[] {
+	const lines: string[] = []
+	let line = ''
+	for (const word of text.split(/\s+/).filter(Boolean)) {
+		if (line && line.length + 1 + word.length > max) {
+			lines.push(line)
+			line = word
+		} else {
+			line = line ? `${line} ${word}` : word
+		}
+	}
+	if (line) lines.push(line)
+	return lines
+}
+
+function QuestionCardSvg({ shape }: { shape: QuestionCardShape }) {
+	const { w, h, question, options, recommendation, answerKind, answerOption, answerText } =
+		shape.props
+	const answered = answerKind !== 'none'
+	const questionLines = wrap(question, 34)
+	const buttons = [...options, KEEP_GRILLING_LABEL]
+	const buttonsTop = 44 + questionLines.length * 24 + 12
+	const hint =
+		answerKind === 'note'
+			? `Answered with a sticky note: "${answerText}"`
+			: answered
+				? 'Answer sent to Claude.'
+				: 'Or stick a note next to this card to answer freely.'
+	const hintLines = wrap(hint, 52)
+	const height = Math.max(h, buttonsTop + buttons.length * 46 + hintLines.length * 16 + 16)
+	return (
+		<g fontFamily={SVG_FONT}>
+			<rect width={w} height={height} rx={12} fill="#ffffff" stroke="#c9ccd6" strokeWidth={1.5} />
+			<text x={16} y={26} fontSize={12} fill="#5b6070">
+				{`Claude asks · ${answered ? 'Answered' : 'Waiting for you'}`}
+			</text>
+			{questionLines.map((line, i) => (
+				// biome-ignore lint/suspicious/noArrayIndexKey: lines are positional
+				<text key={i} x={16} y={56 + i * 24} fontSize={18} fontWeight={600} fill="#1d2130">
+					{line}
+				</text>
+			))}
+			{buttons.map((label, i) => {
+				const y = buttonsTop + i * 46
+				const isKeepGrilling = i === options.length
+				const chosen = isKeepGrilling
+					? answerKind === 'keep_grilling'
+					: answerKind === 'option' && answerOption === i
+				const recommended = !isKeepGrilling && i === recommendation
+				return (
+					// biome-ignore lint/suspicious/noArrayIndexKey: buttons are positional
+					<g key={i}>
+						<rect
+							x={16}
+							y={y}
+							width={w - 32}
+							height={38}
+							rx={8}
+							fill={chosen ? '#dbe7ff' : '#f6f7fa'}
+							stroke={chosen || recommended ? '#2f6fed' : '#c9ccd6'}
+							strokeWidth={recommended || chosen ? 2 : 1}
+							strokeDasharray={isKeepGrilling ? '5 4' : undefined}
+						/>
+						<text x={28} y={y + 24} fontSize={15} fill="#1d2130">
+							{label}
+						</text>
+						{recommended && (
+							<text x={w - 28} y={y + 24} fontSize={12} fill="#2f6fed" textAnchor="end">
+								★ Recommended
+							</text>
+						)}
+					</g>
+				)
+			})}
+			{hintLines.map((line, i) => (
+				<text
+					// biome-ignore lint/suspicious/noArrayIndexKey: lines are positional
+					key={i}
+					x={16}
+					y={buttonsTop + buttons.length * 46 + 12 + i * 16}
+					fontSize={12}
+					fill="#5b6070"
+				>
+					{line}
+				</text>
+			))}
+		</g>
 	)
 }

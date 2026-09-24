@@ -1,4 +1,5 @@
 export * from './ask'
+export * from './canvas'
 export * from './commands'
 export * from './envelope'
 export * from './graph'

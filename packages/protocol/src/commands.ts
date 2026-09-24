@@ -1,5 +1,12 @@
 import { z } from 'zod'
 import { AskAnswerSchema, AskIdSchema, QuestionShape } from './ask'
+import {
+	CanvasActivitySchema,
+	CanvasRegionSchema,
+	CanvasScreenshotSchema,
+	CanvasShapeSchema,
+	PageBoxSchema,
+} from './canvas'
 import { DecisionNodeSchema, DependencyEdgeSchema } from './graph'
 
 const renderCounts = z.object({
@@ -11,7 +18,7 @@ const renderCounts = z.object({
 /**
  * Catalog of commands the MCP server can send to the canvas. Each entry pairs
  * the payload schema with the schema of the result the canvas answers with.
- * Later tickets (ask, read_canvas, ...) add entries here.
+ * New canvas tools add entries here.
  */
 export const canvasCommands = {
 	/** Smoke test: create one visible shape so the bridge can be verified end to end. */
@@ -59,6 +66,35 @@ export const canvasCommands = {
 			/** False when an existing card for this askId was kept. */
 			created: z.boolean(),
 		}),
+	},
+	/**
+	 * Read a region of the canvas (ADR 0008): the shapes in it, described
+	 * semantically, and optionally a screenshot of it. Resets the activity
+	 * digest, since Claude has now seen the canvas.
+	 */
+	'canvas.read': {
+		payload: z.object({
+			region: CanvasRegionSchema,
+			screenshot: z.boolean(),
+		}),
+		result: z.object({
+			/** The page area that was read; null when the page is empty. */
+			region: PageBoxSchema.nullable(),
+			shapes: z.array(CanvasShapeSchema),
+			/** Shapes in the region left out of `shapes` because of the size cap. */
+			omitted: z.number().int().nonnegative(),
+			screenshot: CanvasScreenshotSchema.nullable(),
+			/** Why there is no screenshot, when one was asked for. */
+			screenshotError: z.string().optional(),
+		}),
+	},
+	/**
+	 * What the user changed since the last `canvas.read` (ADR 0009), without
+	 * resetting it. The server appends it to every tool result.
+	 */
+	'canvas.activity': {
+		payload: z.object({}),
+		result: CanvasActivitySchema,
 	},
 } as const
 

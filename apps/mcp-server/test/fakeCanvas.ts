@@ -1,4 +1,5 @@
 import {
+	type CanvasActivity,
 	type CommandEnvelope,
 	type Envelope,
 	encodeEnvelope,
@@ -14,15 +15,25 @@ type Handler = (command: CommandEnvelope) => Envelope | undefined
 /**
  * Stand-in for the browser canvas tab: connects to the bridge, records every
  * command it receives, and answers according to a swappable handler.
+ * `canvas.activity` queries, which the server makes after every tool call,
+ * are answered from {@link activity} and counted apart from `commands`.
  */
 export class FakeCanvas {
 	readonly commands: CommandEnvelope[] = []
+	/** What the user "did" since the last read; reported to every activity query. */
+	activity: CanvasActivity = { added: {}, changed: 0, removed: 0 }
+	activityQueries = 0
 	private handler: Handler = (command) => makeOkResult(command.id, { shapeId: 'shape:fake' })
 
 	private constructor(private readonly socket: WebSocket) {
 		socket.on('message', (data) => {
 			const parsed = parseEnvelope(data.toString())
 			if (!parsed.ok || parsed.envelope.kind !== 'command') return
+			if (parsed.envelope.name === 'canvas.activity') {
+				this.activityQueries++
+				socket.send(encodeEnvelope(makeOkResult(parsed.envelope.id, this.activity)))
+				return
+			}
 			this.commands.push(parsed.envelope)
 			const reply = this.handler(parsed.envelope)
 			if (reply) socket.send(encodeEnvelope(reply))

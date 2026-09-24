@@ -2,6 +2,7 @@ import { DEFAULT_BRIDGE_PORT } from '@tldraw-code/protocol'
 import { useEffect, useState } from 'react'
 import type { Editor } from 'tldraw'
 import { answeredQuestionCards, watchQuestionCards } from '../ask/watchQuestionCards'
+import { ActivityTracker } from '../perception/activity'
 import { BridgeClient, type BridgeStatus } from './BridgeClient'
 import { createCommandHandlers } from './commandHandlers'
 
@@ -14,9 +15,10 @@ export function useCanvasBridge(editor: Editor | undefined): BridgeStatus {
 
 	useEffect(() => {
 		if (!editor) return
+		const activity = new ActivityTracker(editor)
 		const client = new BridgeClient({
 			url: BRIDGE_URL,
-			handlers: createCommandHandlers(editor),
+			handlers: createCommandHandlers(editor, { activity }),
 			onStatusChange: (next) => {
 				setStatus(next)
 				// Answers given while disconnected (or before a tab reload) reach the server now;
@@ -35,6 +37,7 @@ export function useCanvasBridge(editor: Editor | undefined): BridgeStatus {
 		return () => {
 			stopWatching()
 			client.stop()
+			activity.dispose()
 		}
 	}, [editor])
 

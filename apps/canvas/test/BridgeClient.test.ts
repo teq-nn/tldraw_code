@@ -45,6 +45,10 @@ function startClient(handlers?: Partial<CommandHandlers>, statuses: BridgeStatus
 			'ask.show': () => {
 				throw new Error('not used in these tests')
 			},
+			'canvas.read': () => {
+				throw new Error('not used in these tests')
+			},
+			'canvas.activity': () => ({ added: {}, changed: 0, removed: 0 }),
 			...handlers,
 		},
 		onStatusChange: (s) => statuses.push(s),

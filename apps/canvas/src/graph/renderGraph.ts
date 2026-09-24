@@ -36,7 +36,7 @@ const EDGE_COLOR: TLDefaultColorStyle = 'grey'
 const VIEW_INSET = 64
 
 /** Marker stored in `shape.meta` of every shape `render_graph` owns. */
-interface GraphShapeMeta {
+export interface GraphShapeMeta {
 	[key: string]: string | number
 	graphPart: 'node' | 'edge'
 	graphKey: string
@@ -52,7 +52,8 @@ export function edgeShapeId(from: string, to: string): TLShapeId {
 	return createShapeId(`graph-edge:${edgeKey({ from, to })}`)
 }
 
-function graphMeta(meta: unknown): GraphShapeMeta | undefined {
+/** The graph marker of a shape `render_graph` owns, or undefined for any other shape. */
+export function graphMeta(meta: unknown): GraphShapeMeta | undefined {
 	const m = meta as Partial<GraphShapeMeta> | undefined
 	return m && (m.graphPart === 'node' || m.graphPart === 'edge') ? (m as GraphShapeMeta) : undefined
 }
