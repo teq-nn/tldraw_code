@@ -6,15 +6,18 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { CanvasBridge } from '../src/bridge'
 import { createMcpServer } from '../src/server'
 import { FakeCanvas } from './fakeCanvas'
+import { ManualClock, nextEvent, waitFor } from './timing'
 
 // `ask` through the public seam: MCP tool call in, `ask.show` command out,
-// the fake canvas plays the user by sending `ask.answered` events.
+// the fake canvas plays the user by sending `ask.answered` events. Time-outs
+// fire when the test advances a manual clock, so no test depends on speed.
 
 const ASK_TIMEOUT_MS = 300
 
 let bridge: CanvasBridge
 let port: number
 let client: Client
+let clock: ManualClock
 const canvases: FakeCanvas[] = []
 
 const question = {
@@ -24,11 +27,13 @@ const question = {
 }
 
 beforeEach(async () => {
-	bridge = new CanvasBridge({ port: 0, requestTimeoutMs: 200 })
+	bridge = new CanvasBridge({ port: 0, requestTimeoutMs: 5000 })
 	port = await bridge.start()
+	clock = new ManualClock()
 	const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
 	await createMcpServer(bridge, {
 		ask: { timeoutMs: ASK_TIMEOUT_MS, heartbeatMs: 50 },
+		clock,
 	}).connect(serverTransport)
 	client = new Client({ name: 'test', version: '0.0.0' })
 	await client.connect(clientTransport)
@@ -51,11 +56,6 @@ async function connectCanvas(): Promise<FakeCanvas> {
 	return canvas
 }
 
-async function waitFor(condition: () => boolean): Promise<void> {
-	for (let i = 0; i < 200 && !condition(); i++) await new Promise((r) => setTimeout(r, 5))
-	if (!condition()) throw new Error('condition not met')
-}
-
 function ask(
 	args: Record<string, unknown> = question,
 	options: Parameters<Client['callTool']>[2] = {},
@@ -65,6 +65,21 @@ function ask(
 		undefined,
 		options,
 	) as Promise<CallToolResult>
+}
+
+/** An `ask` call the user does not answer: it returns once the clock passes the timeout. */
+async function askUntilTimeout(args: Record<string, unknown> = question): Promise<CallToolResult> {
+	const pending = ask(args)
+	await clock.whenArmed()
+	clock.advance(ASK_TIMEOUT_MS)
+	return pending
+}
+
+/** Send an answer and wait until the server has handled it. */
+async function answerAndWait(canvas: FakeCanvas, payload: unknown): Promise<void> {
+	const handled = nextEvent(bridge, 'ask.answered')
+	canvas.sendEvent('ask.answered', payload)
+	await handled
 }
 
 function textOf(result: CallToolResult): string {
@@ -114,7 +129,9 @@ describe('ask', () => {
 			return result
 		})
 		const askId = askIdOf(await shown(canvas))
-		await new Promise((r) => setTimeout(r, 50))
+		await clock.whenArmed()
+		clock.advance(ASK_TIMEOUT_MS - 1)
+		await new Promise((r) => setImmediate(r))
 		expect(settled).toBe(false)
 
 		canvas.sendEvent('ask.answered', { askId, answer: { kind: 'option', option: 1 } })
@@ -122,6 +139,19 @@ describe('ask', () => {
 		const result = await pending
 		expect(result.isError).toBeFalsy()
 		expect(textOf(result)).toBe('The user chose: Postgres.')
+	})
+
+	it('keeps an answer that arrives right behind the acknowledgement of the card', async () => {
+		const canvas = await connectCanvas()
+		canvas.respondWith((command) => {
+			// The user clicks before the server has even seen the card acknowledged.
+			const { askId } = command.payload as { askId: string }
+			queueMicrotask(() =>
+				canvas.sendEvent('ask.answered', { askId, answer: { kind: 'option', option: 2 } }),
+			)
+			return makeOkResult(command.id, { shapeId: 'shape:question-card', created: true })
+		})
+		expect(textOf(await ask())).toBe('The user chose: Files.')
 	})
 
 	it('says when the user followed the recommendation', async () => {
@@ -152,9 +182,7 @@ describe('ask', () => {
 
 	it('returns "no answer yet" after the timeout without failing, and keeps the card open', async () => {
 		const canvas = await connectCanvas()
-		const started = Date.now()
-		const result = await ask()
-		expect(Date.now() - started).toBeGreaterThanOrEqual(ASK_TIMEOUT_MS - 20)
+		const result = await askUntilTimeout()
 		expect(result.isError).toBeFalsy()
 		expect(textOf(result)).toContain('No answer yet')
 		expect(textOf(result)).toContain('call ask again')
@@ -172,13 +200,12 @@ describe('ask', () => {
 
 	it('returns an answer given after a timeout at once when the same question is asked again', async () => {
 		const canvas = await connectCanvas()
-		const first = await ask()
+		const first = await askUntilTimeout()
 		expect(textOf(first)).toContain('No answer yet')
-		canvas.sendEvent('ask.answered', {
+		await answerAndWait(canvas, {
 			askId: askIdOf(await shown(canvas)),
 			answer: { kind: 'option', option: 1 },
 		})
-		await new Promise((r) => setTimeout(r, 30))
 
 		const result = await ask()
 		expect(textOf(result)).toBe('The user chose: Postgres.')
@@ -187,7 +214,7 @@ describe('ask', () => {
 
 	it('keeps only one question open: a different question replaces the card', async () => {
 		const canvas = await connectCanvas()
-		await ask() // times out
+		await askUntilTimeout()
 		const firstId = askIdOf(await shown(canvas))
 
 		const pending = ask({ ...question, question: 'Which ORM?' })
@@ -195,8 +222,7 @@ describe('ask', () => {
 		expect(secondId).not.toBe(firstId)
 
 		// A late click on the replaced card is ignored.
-		canvas.sendEvent('ask.answered', { askId: firstId, answer: { kind: 'option', option: 0 } })
-		await new Promise((r) => setTimeout(r, 30))
+		await answerAndWait(canvas, { askId: firstId, answer: { kind: 'option', option: 0 } })
 		canvas.sendEvent('ask.answered', { askId: secondId, answer: { kind: 'option', option: 1 } })
 		expect(textOf(await pending)).toBe('The user chose: Postgres.')
 	})
@@ -240,7 +266,10 @@ describe('ask', () => {
 	it('reports progress while it waits', async () => {
 		await connectCanvas()
 		const progress: number[] = []
-		const result = await ask(question, { onprogress: (p) => progress.push(p.progress) })
+		const pending = ask(question, { onprogress: (p) => progress.push(p.progress) })
+		await clock.whenArmed()
+		clock.advance(ASK_TIMEOUT_MS)
+		const result = await pending
 		expect(textOf(result)).toContain('No answer yet')
 		expect(progress.length).toBeGreaterThanOrEqual(2)
 	})
@@ -335,10 +364,9 @@ describe('collapsing the answered question card', () => {
 
 	it('also collapses an answer that ask returned after a timeout', async () => {
 		const canvas = await connectFullCanvas()
-		await ask() // times out
+		await askUntilTimeout()
 		const askId = askIdOf(await shown(canvas))
-		canvas.sendEvent('ask.answered', { askId, answer: { kind: 'keep_grilling' } })
-		await new Promise((r) => setTimeout(r, 30))
+		await answerAndWait(canvas, { askId, answer: { kind: 'keep_grilling' } })
 		await ask() // returns the buffered answer
 
 		await renderGraph(graph)
@@ -347,11 +375,10 @@ describe('collapsing the answered question card', () => {
 
 	it('never collapses a card whose answer Claude has not received', async () => {
 		const canvas = await connectFullCanvas()
-		await ask() // times out; the card stays open
+		await askUntilTimeout() // the card stays open
 		const askId = askIdOf(await shown(canvas))
 		// The user answers, but Claude renders before asking again: the answer must survive.
-		canvas.sendEvent('ask.answered', { askId, answer: { kind: 'option', option: 1 } })
-		await new Promise((r) => setTimeout(r, 30))
+		await answerAndWait(canvas, { askId, answer: { kind: 'option', option: 1 } })
 
 		const result = await renderGraph(graph)
 		expect(renders(canvas)[0]?.payload).not.toHaveProperty('collapseQuestion')
@@ -381,7 +408,7 @@ describe('collapsing the answered question card', () => {
 		canvas.sendEvent('ask.answered', { askId, answer: { kind: 'option', option: 0 } })
 		await pending
 
-		await ask({ ...question, question: 'Which ORM?' }) // replaces the card, then times out
+		await askUntilTimeout({ ...question, question: 'Which ORM?' }) // replaces the card
 		await renderGraph(graph)
 		expect(renders(canvas)[0]?.payload).not.toHaveProperty('collapseQuestion')
 	})

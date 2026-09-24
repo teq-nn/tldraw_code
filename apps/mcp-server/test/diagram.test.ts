@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { CanvasBridge } from '../src/bridge'
 import { createMcpServer } from '../src/server'
 import { FakeCanvas } from './fakeCanvas'
+import { ManualClock, nextEvent, waitFor } from './timing'
 
 // render_diagram and compare through the public seam: MCP tool calls in,
 // `diagram.render` / `ask.show` commands out, the fake canvas plays the user.
@@ -15,6 +16,7 @@ const ASK_TIMEOUT_MS = 300
 let bridge: CanvasBridge
 let port: number
 let client: Client
+let clock: ManualClock
 const canvases: FakeCanvas[] = []
 
 const direct = {
@@ -48,11 +50,13 @@ const comparison = {
 }
 
 beforeEach(async () => {
-	bridge = new CanvasBridge({ port: 0, requestTimeoutMs: 200 })
+	bridge = new CanvasBridge({ port: 0, requestTimeoutMs: 5000 })
 	port = await bridge.start()
+	clock = new ManualClock()
 	const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
 	await createMcpServer(bridge, {
 		ask: { timeoutMs: ASK_TIMEOUT_MS, heartbeatMs: 50 },
+		clock,
 	}).connect(serverTransport)
 	client = new Client({ name: 'test', version: '0.0.0' })
 	await client.connect(clientTransport)
@@ -81,11 +85,6 @@ async function connectCanvas(): Promise<FakeCanvas> {
 	})
 	await waitFor(() => bridge.isConnected())
 	return canvas
-}
-
-async function waitFor(condition: () => boolean): Promise<void> {
-	for (let i = 0; i < 200 && !condition(); i++) await new Promise((r) => setTimeout(r, 5))
-	if (!condition()) throw new Error('condition not met')
 }
 
 function call(name: string, args: Record<string, unknown>): Promise<CallToolResult> {
@@ -237,14 +236,18 @@ describe('compare', () => {
 
 	it('after "no answer yet", the same call keeps waiting on the same card', async () => {
 		const canvas = await connectCanvas()
-		const first = await call('compare', comparison)
+		const pending = call('compare', comparison)
+		await clock.whenArmed()
+		clock.advance(ASK_TIMEOUT_MS)
+		const first = await pending
 		expect(textOf(first)).toContain('No answer yet')
 		expect(textOf(first)).toContain('call compare again with exactly the same arguments')
 		const askId = askIdOf(await command(canvas, 1))
 
 		// The user answers while no call waits; the next identical call returns it at once.
+		const handled = nextEvent(bridge, 'ask.answered')
 		canvas.sendEvent('ask.answered', { askId, answer: { kind: 'option', option: 0 } })
-		await new Promise((r) => setTimeout(r, 30))
+		await handled
 		const second = await call('compare', comparison)
 		expect(textOf(second)).toContain('The user chose: Direct.')
 		// The frames were re-rendered in place (same kind and id), and no second card was shown.

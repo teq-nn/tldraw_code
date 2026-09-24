@@ -29,7 +29,13 @@ import {
 } from '@tldraw-code/protocol'
 import type { ZodError } from 'zod'
 import { z } from 'zod'
-import { AskCoordinator, type AskOutcome, type AskTimings, DEFAULT_ASK_TIMINGS } from './ask'
+import {
+	type AskClock,
+	AskCoordinator,
+	type AskOutcome,
+	type AskTimings,
+	DEFAULT_ASK_TIMINGS,
+} from './ask'
 import { type CanvasBridge, CanvasBridgeError } from './bridge'
 import { ToolInputError } from './errors'
 import { describeRead, fetchActivityNote } from './perception'
@@ -66,6 +72,8 @@ export const SERVER_INSTRUCTIONS =
 export interface McpServerOptions {
 	/** Timeout and heartbeat of `ask` (ADR 0006). */
 	ask?: Partial<AskTimings>
+	/** Time source of `ask`'s timeout and heartbeat; real timers by default (tests pass a manual clock). */
+	clock?: AskClock
 	/** Diagnostic logger; must not write to stdout. */
 	log?: (message: string) => void
 	/** Where `sync_wayfinder_map` reads tickets (ADR 0012); GitHub Issues of the current repo by default. */
@@ -85,7 +93,7 @@ export function createMcpServer(bridge: CanvasBridge, options: McpServerOptions 
 			return note ? `${text}\n\n${note}` : text
 		})
 	const askTimings = { ...DEFAULT_ASK_TIMINGS, ...options.ask }
-	const asks = new AskCoordinator(bridge, askTimings, options.log)
+	const asks = new AskCoordinator(bridge, askTimings, options.log, options.clock)
 	const tracker = options.tracker ?? defaultTrackerOptions()
 	/** The map the last sync read, so a later sync can omit it. */
 	let lastMap: Awaited<ReturnType<typeof resolveMapTarget>> | undefined

@@ -15,6 +15,26 @@ export interface AskTimings {
 	heartbeatMs: number
 }
 
+/**
+ * The time source of `ask`'s timeout and heartbeat. Real timers by default;
+ * tests pass a manual clock so waits end exactly when the test says so.
+ */
+export interface AskClock {
+	now(): number
+	setTimeout(run: () => void, ms: number): unknown
+	clearTimeout(handle: unknown): void
+	setInterval(run: () => void, ms: number): unknown
+	clearInterval(handle: unknown): void
+}
+
+export const SYSTEM_CLOCK: AskClock = {
+	now: () => Date.now(),
+	setTimeout: (run, ms) => setTimeout(run, ms),
+	clearTimeout: (handle) => clearTimeout(handle as NodeJS.Timeout),
+	setInterval: (run, ms) => setInterval(run, ms),
+	clearInterval: (handle) => clearInterval(handle as NodeJS.Timeout),
+}
+
 /** Ten minutes: long enough to think, short enough that Claude hears back within a coffee break (ADR 0006). */
 export const DEFAULT_ASK_TIMINGS: AskTimings = { timeoutMs: 10 * 60_000, heartbeatMs: 15_000 }
 
@@ -71,6 +91,7 @@ export class AskCoordinator {
 		private readonly bridge: CanvasBridge,
 		private readonly timings: AskTimings = DEFAULT_ASK_TIMINGS,
 		private readonly log: (message: string) => void = () => {},
+		private readonly clock: AskClock = SYSTEM_CLOCK,
 	) {
 		bridge.onEvent((event) => {
 			if (event.name !== 'ask.answered') return
@@ -101,15 +122,24 @@ export class AskCoordinator {
 		const askId = open?.askId ?? randomUUID()
 		// The new card replaces the answered one, so there is nothing left to collapse.
 		this.delivered = undefined
-		// Show (or re-show, if the user deleted it) the card; returns quickly.
-		await this.bridge.request('ask.show', {
-			askId,
-			question: question.question,
-			options: question.options,
-			recommendation: question.options.indexOf(question.recommendation),
-			...(options.comparison ? { comparison: options.comparison } : {}),
-		})
-		this.open = { askId, question }
+		// Open the question before showing it: a click that arrives right behind the
+		// canvas's acknowledgement is then kept for the wait below instead of dropped.
+		const previous = this.open
+		this.open = open ?? { askId, question }
+		try {
+			// Show (or re-show, if the user deleted it) the card; returns quickly.
+			await this.bridge.request('ask.show', {
+				askId,
+				question: question.question,
+				options: question.options,
+				recommendation: question.options.indexOf(question.recommendation),
+				...(options.comparison ? { comparison: options.comparison } : {}),
+			})
+		} catch (error) {
+			// The card was not shown: whatever was open before is still what the canvas shows.
+			if (this.open?.askId === askId && !this.open.answer) this.open = previous
+			throw error
+		}
 		return this.wait(askId, options)
 	}
 
@@ -139,26 +169,34 @@ export class AskCoordinator {
 	}
 
 	private wait(askId: string, { signal, onHeartbeat }: AskCallOptions): Promise<AskOutcome> {
-		const started = Date.now()
+		const clock = this.clock
+		const started = clock.now()
 		return new Promise<AskOutcome>((resolve) => {
 			const finish = (outcome: AskOutcome) => {
-				clearTimeout(timer)
-				clearInterval(heartbeat)
+				clock.clearTimeout(timer)
+				clock.clearInterval(heartbeat)
 				signal?.removeEventListener('abort', onAbort)
 				if (this.waiter?.askId === askId) this.waiter = undefined
 				resolve(outcome)
 			}
 			const onAbort = () => finish({ kind: 'cancelled' })
-			const timer = setTimeout(
-				() => finish({ kind: 'timeout', waitedMs: Date.now() - started }),
+			const timer = clock.setTimeout(
+				() => finish({ kind: 'timeout', waitedMs: clock.now() - started }),
 				this.timings.timeoutMs,
 			)
-			const heartbeat = setInterval(
-				() => onHeartbeat?.(Date.now() - started),
+			const heartbeat = clock.setInterval(
+				() => onHeartbeat?.(clock.now() - started),
 				this.timings.heartbeatMs,
 			)
 			if (signal?.aborted) return onAbort()
 			signal?.addEventListener('abort', onAbort, { once: true })
+			const early = this.open?.askId === askId ? this.open.answer : undefined
+			if (early) {
+				// Answered while the card was being shown.
+				this.open = undefined
+				this.delivered = askId
+				return finish({ kind: 'answered', answer: early, buffered: false })
+			}
 			this.waiter = {
 				askId,
 				resolve: (answer) => finish({ kind: 'answered', answer, buffered: false }),
