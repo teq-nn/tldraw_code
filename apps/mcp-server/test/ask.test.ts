@@ -281,3 +281,108 @@ describe('ask', () => {
 		expect(textOf(result)).toContain('not_connected')
 	})
 })
+
+// ADR 0010: once Claude has the answer, the next render_graph collapses the card.
+describe('collapsing the answered question card', () => {
+	const graph = { nodes: [{ id: 'storage', title: 'Storage', status: 'open' }] }
+	const resolved = {
+		nodes: [{ id: 'storage', title: 'Storage', status: 'resolved', note: 'SQLite' }],
+	}
+
+	/** Acknowledges `ask.show` and `graph.render` like the real canvas; collapses whatever it is asked to. */
+	async function connectFullCanvas(): Promise<FakeCanvas> {
+		const canvas = await connectCanvas()
+		respondLikeCanvas(canvas)
+		return canvas
+	}
+
+	function respondLikeCanvas(canvas: FakeCanvas): void {
+		const counts = { created: 0, updated: 1, removed: 0 }
+		canvas.respondWith((command) =>
+			command.name === 'graph.render'
+				? makeOkResult(command.id, {
+						nodes: counts,
+						edges: counts,
+						questionCollapsed: 'collapseQuestion' in (command.payload as object),
+					})
+				: makeOkResult(command.id, { shapeId: 'shape:question-card', created: true }),
+		)
+	}
+
+	function renderGraph(args: Record<string, unknown>): Promise<CallToolResult> {
+		return client.callTool({ name: 'render_graph', arguments: args }) as Promise<CallToolResult>
+	}
+
+	function renders(canvas: FakeCanvas): CommandEnvelope[] {
+		return canvas.commands.filter((command) => command.name === 'graph.render')
+	}
+
+	it('asks the canvas to collapse the card whose answer ask returned, once', async () => {
+		const canvas = await connectFullCanvas()
+		await renderGraph(graph)
+		const pending = ask()
+		const askId = askIdOf(await shown(canvas, 2))
+		canvas.sendEvent('ask.answered', { askId, answer: { kind: 'option', option: 0 } })
+		await pending
+
+		const result = await renderGraph(resolved)
+		expect(renders(canvas)[1]?.payload).toMatchObject({ collapseQuestion: askId })
+		expect(textOf(result)).toContain('Removed the answered question card')
+
+		await renderGraph(resolved)
+		expect(renders(canvas)[2]?.payload).not.toHaveProperty('collapseQuestion')
+	})
+
+	it('also collapses an answer that ask returned after a timeout', async () => {
+		const canvas = await connectFullCanvas()
+		await ask() // times out
+		const askId = askIdOf(await shown(canvas))
+		canvas.sendEvent('ask.answered', { askId, answer: { kind: 'keep_grilling' } })
+		await new Promise((r) => setTimeout(r, 30))
+		await ask() // returns the buffered answer
+
+		await renderGraph(graph)
+		expect(renders(canvas)[0]?.payload).toMatchObject({ collapseQuestion: askId })
+	})
+
+	it('never collapses a card whose answer Claude has not received', async () => {
+		const canvas = await connectFullCanvas()
+		await ask() // times out; the card stays open
+		const askId = askIdOf(await shown(canvas))
+		// The user answers, but Claude renders before asking again: the answer must survive.
+		canvas.sendEvent('ask.answered', { askId, answer: { kind: 'option', option: 1 } })
+		await new Promise((r) => setTimeout(r, 30))
+
+		const result = await renderGraph(graph)
+		expect(renders(canvas)[0]?.payload).not.toHaveProperty('collapseQuestion')
+		expect(textOf(result)).not.toContain('Removed')
+		expect(textOf(await ask())).toBe('The user chose: Postgres.')
+	})
+
+	it('offers the card again after a failed render', async () => {
+		const canvas = await connectFullCanvas()
+		const pending = ask()
+		const askId = askIdOf(await shown(canvas))
+		canvas.sendEvent('ask.answered', { askId, answer: { kind: 'option', option: 0 } })
+		await pending
+
+		canvas.failWith('handler_failed', 'boom')
+		expect((await renderGraph(resolved)).isError).toBe(true)
+		const failed = canvas.commands.length
+		respondLikeCanvas(canvas)
+		await renderGraph(resolved)
+		expect(canvas.commands[failed]?.payload).toMatchObject({ collapseQuestion: askId })
+	})
+
+	it('stops offering the card once a new question has replaced it', async () => {
+		const canvas = await connectFullCanvas()
+		const pending = ask()
+		const askId = askIdOf(await shown(canvas))
+		canvas.sendEvent('ask.answered', { askId, answer: { kind: 'option', option: 0 } })
+		await pending
+
+		await ask({ ...question, question: 'Which ORM?' }) // replaces the card, then times out
+		await renderGraph(graph)
+		expect(renders(canvas)[0]?.payload).not.toHaveProperty('collapseQuestion')
+	})
+})

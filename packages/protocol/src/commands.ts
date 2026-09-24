@@ -41,10 +41,18 @@ export const canvasCommands = {
 			edges: z.array(DependencyEdgeSchema),
 			/** Ids of the nodes on the frontier, to be highlighted. */
 			frontier: z.array(z.string()),
+			/**
+			 * The question card whose answer Claude has received (ADR 0010). If
+			 * it is still on the canvas and answered, it is removed in the same
+			 * undo step: the graph, with the answer as a node's note, replaces it.
+			 */
+			collapseQuestion: AskIdSchema.optional(),
 		}),
 		result: z.object({
 			nodes: renderCounts,
 			edges: renderCounts,
+			/** Whether the answered question card named in `collapseQuestion` was removed. */
+			questionCollapsed: z.boolean().default(false),
 		}),
 	},
 	/**

@@ -71,6 +71,7 @@ describe('graph.render', () => {
 		expect(result).toEqual({
 			nodes: { created: 5, updated: 0, removed: 0 },
 			edges: { created: 3, updated: 0, removed: 0 },
+			questionCollapsed: false,
 		})
 	})
 
@@ -111,6 +112,16 @@ describe('graph.render', () => {
 		expect(bounds && editor.getViewportPageBounds().contains(bounds)).toBe(true)
 	})
 
+	it('shows a note as an italic label under the plain title', async () => {
+		await render(graph)
+		const [title, note] = node('a').props.richText.content as {
+			content: { text: string; marks?: { type: string }[] }[]
+		}[]
+		expect(title?.content).toEqual([{ type: 'text', text: 'Storage engine' }])
+		expect(note?.content).toEqual([{ type: 'text', text: 'SQLite', marks: [{ type: 'italic' }] }])
+		expect(node('b').props.richText.content).toHaveLength(1)
+	})
+
 	it('updates shapes in place when rendered again instead of duplicating them', async () => {
 		await render(graph)
 		const before = editor.getCurrentPageShapeIds()
@@ -132,6 +143,7 @@ describe('graph.render', () => {
 		expect(result).toEqual({
 			nodes: { created: 0, updated: 5, removed: 0 },
 			edges: { created: 0, updated: 3, removed: 0 },
+			questionCollapsed: false,
 		})
 	})
 
@@ -152,6 +164,7 @@ describe('graph.render', () => {
 		expect(result).toEqual({
 			nodes: { created: 1, updated: 4, removed: 1 },
 			edges: { created: 1, updated: 2, removed: 1 },
+			questionCollapsed: false,
 		})
 	})
 

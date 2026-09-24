@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import type { AskAnswer } from '@tldraw-code/protocol'
-import { createShapeId, type Editor, type TLNoteShape, toRichText } from 'tldraw'
+import { createShapeId, type Editor, type TLGeoShape, type TLNoteShape, toRichText } from 'tldraw'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
 	answerQuestionCard,
@@ -172,5 +172,86 @@ describe('answers', () => {
 		expect(answeredQuestionCards(editor)).toEqual([
 			{ askId: 'q1', answer: { kind: 'option', option: 0 } },
 		])
+	})
+})
+
+// ADR 0010: the graph, with the answer as a node's note, replaces the answered card.
+describe('collapsing into the graph', () => {
+	const open = { nodes: [{ id: 'a', title: 'Storage', status: 'open' as const }], edges: [] }
+	const resolved = {
+		nodes: [{ id: 'a', title: 'Storage', status: 'resolved' as const, note: 'SQLite' }],
+		edges: [],
+	}
+
+	it('removes the answered card named in the render and shows the note on the node', () => {
+		renderGraph(editor, { ...open, frontier: ['a'] })
+		showQuestion(editor, payload)
+		answerQuestionCard(editor, card(), { answerKind: 'option', answerOption: 0 })
+
+		const result = renderGraph(editor, { ...resolved, frontier: [], collapseQuestion: 'q1' })
+
+		expect(result.questionCollapsed).toBe(true)
+		expect(getQuestionCards(editor)).toEqual([])
+		const node = editor.getShape<TLGeoShape>(createShapeId('graph-node:a'))
+		expect(node && editor.getShapeUtil(node).getText(node)).toBe('Storage\nSQLite')
+	})
+
+	it('keeps a card that is still waiting for an answer', () => {
+		showQuestion(editor, payload)
+		const result = renderGraph(editor, { ...open, frontier: ['a'], collapseQuestion: 'q1' })
+		expect(result.questionCollapsed).toBe(false)
+		expect(getQuestionCards(editor)).toHaveLength(1)
+	})
+
+	it('leaves a card it is not told about alone', () => {
+		showQuestion(editor, payload)
+		answerQuestionCard(editor, card(), { answerKind: 'option', answerOption: 0 })
+		const result = renderGraph(editor, { ...resolved, frontier: [], collapseQuestion: 'q9' })
+		expect(result.questionCollapsed).toBe(false)
+		expect(getQuestionCards(editor)).toHaveLength(1)
+	})
+
+	it('also removes the sticky note that answered it, and no other note', () => {
+		const earlier = addNote('Whatever the team knows', -3000, -3000)
+		showQuestion(editor, payload)
+		const bounds = editor.getShapePageBounds(card().id)
+		if (!bounds) throw new Error('no bounds')
+		const answer = addNote('Whatever the team knows', bounds.maxX + 20, bounds.minY)
+		expect(card().props).toMatchObject({
+			answerKind: 'note',
+			answerText: 'Whatever the team knows',
+		})
+		const nearby = addNote('Unrelated thought', bounds.minX, bounds.maxY + 20)
+
+		renderGraph(editor, { ...resolved, frontier: [], collapseQuestion: 'q1' })
+
+		expect(getQuestionCards(editor)).toEqual([])
+		expect(editor.getShape(answer)).toBeUndefined()
+		expect(editor.getShape(nearby)).toBeDefined()
+		expect(editor.getShape(earlier)).toBeDefined()
+	})
+
+	it('brings the graph back into view', () => {
+		renderGraph(editor, { ...open, frontier: ['a'] })
+		showQuestion(editor, payload)
+		answerQuestionCard(editor, card(), { answerKind: 'option', answerOption: 0 })
+		editor.centerOnPoint({ x: 5000, y: 5000 })
+
+		renderGraph(editor, { ...resolved, frontier: [], collapseQuestion: 'q1' })
+
+		const node = editor.getShapePageBounds(createShapeId('graph-node:a'))
+		expect(node && editor.getViewportPageBounds().contains(node)).toBe(true)
+	})
+
+	it('undoes together with the render', () => {
+		renderGraph(editor, { ...open, frontier: ['a'] })
+		showQuestion(editor, payload)
+		answerQuestionCard(editor, card(), { answerKind: 'keep_grilling' })
+		editor.markHistoryStoppingPoint()
+
+		renderGraph(editor, { ...resolved, frontier: [], collapseQuestion: 'q1' })
+		editor.undo()
+
+		expect(getQuestionCards(editor)).toHaveLength(1)
 	})
 })

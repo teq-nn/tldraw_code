@@ -62,6 +62,8 @@ interface Waiter {
 export class AskCoordinator {
 	private open: OpenQuestion | undefined
 	private waiter: Waiter | undefined
+	/** The last question whose answer an `ask` call returned; its card may still be on the canvas. */
+	private delivered: string | undefined
 
 	constructor(
 		private readonly bridge: CanvasBridge,
@@ -90,10 +92,13 @@ export class AskCoordinator {
 		const open = this.open && sameQuestion(this.open.question, question) ? this.open : undefined
 		if (open?.answer) {
 			this.open = undefined
+			this.delivered = open.askId
 			return { kind: 'answered', answer: open.answer, buffered: true }
 		}
 
 		const askId = open?.askId ?? randomUUID()
+		// The new card replaces the answered one, so there is nothing left to collapse.
+		this.delivered = undefined
 		// Show (or re-show, if the user deleted it) the card; returns quickly.
 		await this.bridge.request('ask.show', {
 			askId,
@@ -108,6 +113,21 @@ export class AskCoordinator {
 	/** Whether a question card is open (shown and not yet answered to a waiting call). */
 	hasOpenQuestion(): boolean {
 		return this.open !== undefined
+	}
+
+	/**
+	 * The question whose answer Claude has received and whose card may still
+	 * be on the canvas, i.e. the card `render_graph` may collapse (ADR 0010).
+	 * Cards whose answer Claude has not seen yet are never offered, so
+	 * collapsing cannot lose an answer.
+	 */
+	answeredQuestion(): string | undefined {
+		return this.delivered
+	}
+
+	/** The answered card `askId` is gone from the canvas; stop offering it. */
+	forgetAnsweredQuestion(askId: string): void {
+		if (this.delivered === askId) this.delivered = undefined
 	}
 
 	private wait(askId: string, { signal, onHeartbeat }: AskCallOptions): Promise<AskOutcome> {
@@ -150,6 +170,7 @@ export class AskCoordinator {
 		}
 		if (this.waiter?.askId === askId) {
 			this.open = undefined
+			this.delivered = askId
 			this.waiter.resolve(answer)
 			return
 		}

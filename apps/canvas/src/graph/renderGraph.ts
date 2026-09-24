@@ -13,10 +13,12 @@ import {
 	type TLBindingCreate,
 	type TLDefaultColorStyle,
 	type TLGeoShape,
+	type TLRichText,
 	type TLShapeId,
 	type TLShapePartial,
 	toRichText,
 } from 'tldraw'
+import { collapseAnsweredQuestion } from '../ask/collapseQuestion'
 import { layoutGraph } from './layout'
 
 type RenderPayload = CanvasCommandPayload<'graph.render'>
@@ -68,6 +70,7 @@ export function renderGraph(editor: Editor, payload: RenderPayload): RenderResul
 	const result: RenderResult = {
 		nodes: { created: 0, updated: 0, removed: 0 },
 		edges: { created: 0, updated: 0, removed: 0 },
+		questionCollapsed: false,
 	}
 	const frontier = new Set(payload.frontier)
 	const existing = editor
@@ -78,6 +81,11 @@ export function renderGraph(editor: Editor, payload: RenderPayload): RenderResul
 	const previousMeta = existing.map((shape) => graphMeta(shape.meta)).find(Boolean)
 
 	editor.run(() => {
+		// 0. The answered question card gives way to the graph, which now carries its answer (ADR 0010).
+		if (payload.collapseQuestion) {
+			result.questionCollapsed = collapseAnsweredQuestion(editor, payload.collapseQuestion)
+		}
+
 		// 1. Remove shapes of nodes and edges that are no longer in the graph.
 		const wanted = new Set<TLShapeId>([
 			...payload.nodes.map((node) => nodeShapeId(node.id)),
@@ -105,7 +113,7 @@ export function renderGraph(editor: Editor, payload: RenderPayload): RenderResul
 				font: 'sans',
 				align: 'middle',
 				verticalAlign: 'middle',
-				richText: toRichText(node.note ? `${node.title}\n${node.note}` : node.title),
+				richText: nodeText(node.title, node.note),
 			}
 			if (editor.getShape(id)) {
 				editor.updateShape<TLGeoShape>({ id, type: 'geo', props })
@@ -166,13 +174,32 @@ export function renderGraph(editor: Editor, payload: RenderPayload): RenderResul
 		}
 	})
 
-	if (firstRender) {
+	// Show the graph when it is new, or when the card the user was looking at gave way to it.
+	if (firstRender || result.questionCollapsed) {
 		const bounds = editor.getShapesPageBounds(payload.nodes.map((node) => nodeShapeId(node.id)))
 		if (bounds && !editor.getViewportPageBounds().contains(bounds)) {
-			editor.zoomToBounds(Box.ExpandBy(bounds, VIEW_INSET))
+			editor.zoomToBounds(
+				Box.ExpandBy(bounds, VIEW_INSET),
+				firstRender ? undefined : { targetZoom: Math.min(1, editor.getZoomLevel()) },
+			)
 		}
 	}
 	return result
+}
+
+/**
+ * A node's label: the title, and under it the note in italics, so an answer
+ * reads as a label on the decision rather than part of its name.
+ */
+function nodeText(title: string, note: string | undefined): TLRichText {
+	const text = toRichText(note ? `${title}\n${note}` : title)
+	if (!note) return text
+	const [first, ...rest] = text.content as { type: string; content?: { marks?: unknown[] }[] }[]
+	const italic = rest.map((paragraph) => ({
+		...paragraph,
+		content: paragraph.content?.map((run) => ({ ...run, marks: [{ type: 'italic' }] })),
+	}))
+	return { ...text, content: [first, ...italic] } as TLRichText
 }
 
 function meta(

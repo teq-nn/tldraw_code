@@ -94,7 +94,9 @@ export function createMcpServer(bridge: CanvasBridge, options: McpServerOptions 
 				'and dependency edges {from, to} meaning "from must be resolved before to". ' +
 				'Layout, status colours and the frontier (open nodes whose blockers are all resolved, highlighted) ' +
 				'are computed for you. Nodes and edges are matched by id: existing shapes are updated, ' +
-				'new ones added, and ones missing from this call removed.',
+				'new ones added, and ones missing from this call removed. If you have received the answer to ' +
+				'the question card on the canvas, the card is removed: put the answer into the note of the ' +
+				'decision node it settled.',
 			inputSchema: FrontierGraphShape,
 		},
 		async (args) =>
@@ -103,7 +105,14 @@ export function createMcpServer(bridge: CanvasBridge, options: McpServerOptions 
 				if (!parsed.success) throw new ToolInputError('invalid_graph', describeIssues(parsed.error))
 				const graph = parsed.data
 				const frontier = computeFrontier(graph)
-				const result = await bridge.request('graph.render', { ...graph, frontier })
+				const collapseQuestion = asks.answeredQuestion()
+				const result = await bridge.request('graph.render', {
+					...graph,
+					frontier,
+					...(collapseQuestion ? { collapseQuestion } : {}),
+				})
+				// Collapsed now, or already gone (replaced or deleted by the user): either way done.
+				if (collapseQuestion) asks.forgetAnsweredQuestion(collapseQuestion)
 				return describeRender(graph.nodes.length, graph.edges.length, frontier, result)
 			}),
 	)
@@ -238,12 +247,13 @@ function describeRender(
 	nodeCount: number,
 	edgeCount: number,
 	frontier: string[],
-	{ nodes, edges }: CanvasCommandResult<'graph.render'>,
+	{ nodes, edges, questionCollapsed }: CanvasCommandResult<'graph.render'>,
 ): string {
 	const counts = (c: typeof nodes) => `${c.created} new, ${c.updated} updated, ${c.removed} removed`
 	return [
 		`Rendered ${nodeCount} decision nodes (${counts(nodes)}) and ${edgeCount} edges (${counts(edges)}).`,
 		`Frontier: ${frontier.length > 0 ? frontier.join(', ') : '(empty)'}.`,
+		...(questionCollapsed ? ['Removed the answered question card; the graph now shows it.'] : []),
 	].join('\n')
 }
 
