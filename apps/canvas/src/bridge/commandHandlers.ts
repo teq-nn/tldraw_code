@@ -6,6 +6,7 @@ import type { ActivityTracker } from '../perception/activity'
 import { readCanvas } from '../perception/readCanvas'
 import { type CaptureScreenshot, captureScreenshot } from '../perception/screenshot'
 import { CLAUDE_META } from '../perception/shapeRoles'
+import { renderPrototype } from '../prototype/renderPrototype'
 import type { CommandHandlers } from './BridgeClient'
 
 const SMOKE_SHAPE_SIZE = { w: 280, h: 120 }
@@ -47,6 +48,7 @@ export function createCommandHandlers(
 		'graph.render': (payload) => asClaude(() => renderGraph(editor, payload)),
 		'diagram.render': (payload) => asClaude(() => renderDiagrams(editor, payload)),
 		'ask.show': (payload) => asClaude(() => showQuestion(editor, payload)),
+		'prototype.render': (payload) => asClaude(() => renderPrototype(editor, payload)),
 		'canvas.read': (payload) => readCanvas(editor, payload, { capture, activity }),
 		'canvas.activity': () =>
 			activity ? activity.snapshot() : { added: {}, changed: 0, removed: 0 },

@@ -24,6 +24,8 @@ import {
 	QuestionShape,
 	RenderDiagramSchema,
 	RenderDiagramShape,
+	RenderPrototypeSchema,
+	RenderPrototypeShape,
 } from '@tldraw-code/protocol'
 import type { ZodError } from 'zod'
 import { z } from 'zod'
@@ -52,7 +54,7 @@ export const SERVER_INSTRUCTIONS =
 	'Call read_canvas (shape data plus a screenshot) before each new question, before interpreting an ' +
 	'answer that refers to the canvas (e.g. a sticky-note answer), and whenever a tool result reports ' +
 	'canvas activity. Treat a sticky note or drawing next to or on a question card or decision node as ' +
-	"the user's comment on it. " +
+	"the user's comment on it; one on a prototype is feedback on that prototype. " +
 	'When the session works a wayfinder map on the issue tracker, its tickets are the source of truth: ' +
 	'draw the map with sync_wayfinder_map instead of render_graph, and call it again after every change ' +
 	'you make to the tickets.'
@@ -333,12 +335,59 @@ export function createMcpServer(bridge: CanvasBridge, options: McpServerOptions 
 	)
 
 	server.registerTool(
+		'render_prototype',
+		{
+			title: 'Render an HTML prototype',
+			description:
+				'Show a clickable UI prototype on the canvas: one self-contained HTML document (all CSS and JS ' +
+				'inline) in a prototype frame titled with its label. It runs in a sandboxed iframe with no network, ' +
+				'storage, cookies, pop-ups or dialogs, so external URLs do not load: inline what it needs, and copy ' +
+				"the repo's own styles (CSS variables, component classes, fonts as data: URLs) into it so it looks " +
+				'like the real app. The user can click through it and scribble or stick notes on it; read_canvas ' +
+				'then anchors each annotation to this prototype with its position inside it, and its screenshot ' +
+				'shows the prototype as currently displayed. To act on such feedback, render a new iteration with ' +
+				'iterationOf set to this id and a new label: it appears right next to the old one, which stays. ' +
+				'Rendering again with the same id (default: a slug of the label) replaces its HTML in place. For a ' +
+				'UI choice, render 2 or 3 prototypes, then ask which to take.',
+			inputSchema: RenderPrototypeShape,
+		},
+		async (args) =>
+			withActivity(async () => {
+				const parsed = RenderPrototypeSchema.safeParse(args)
+				if (!parsed.success) {
+					throw new ToolInputError('invalid_prototype', describeIssues(parsed.error))
+				}
+				const input = parsed.data
+				const result = await bridge.request('prototype.render', {
+					id: input.id,
+					label: input.label,
+					html: input.html,
+					...(input.caption ? { caption: input.caption } : {}),
+					...(input.iterationOf ? { iterationOf: input.iterationOf } : {}),
+					...(input.width ? { width: input.width } : {}),
+					...(input.height ? { height: input.height } : {}),
+				})
+				const { x, y, w, h } = result.bounds
+				return [
+					`${result.created ? 'Rendered' : 'Updated'} prototype "${input.id}" ("${input.label}") in shape ` +
+						`${result.shapeId} at x ${x}, y ${y}, ${w} x ${h} (viewport ${result.width} x ${result.height} px).`,
+					...(input.iterationOf && result.created
+						? [`It is a new iteration of "${input.iterationOf}", placed right next to it.`]
+						: []),
+					'The user can click through it. Sketches and sticky notes on it show up in read_canvas anchored ' +
+						'to it, with their position in prototype px.',
+				].join('\n')
+			}),
+	)
+
+	server.registerTool(
 		'read_canvas',
 		{
 			title: 'Read the canvas',
 			description:
 				'See what is on the canvas: shape data (role, owner, text, colour, bounds, and for the ' +
-				"user's shapes the decision node or question card they are on or next to) plus a PNG screenshot " +
+				"user's shapes the decision node, question card, diagram or prototype they are on or next to, " +
+				'for a prototype with their position inside it in prototype px) plus a PNG screenshot ' +
 				'of the region. Shape data alone does not carry the meaning of a sketch; look at the screenshot. ' +
 				'Region: "all" (default, whole page), "viewport" (what the user sees), "question" (the question ' +
 				'card and its surroundings, where sticky-note answers and sketches next to it are), or a page box ' +

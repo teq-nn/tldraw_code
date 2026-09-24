@@ -20,6 +20,11 @@ import { getQuestionCards, isQuestionCard } from '../ask/showQuestion'
 import { answerOf, NOTE_REACH } from '../ask/watchQuestionCards'
 import { diagramMeta } from '../diagram/renderDiagrams'
 import { graphMeta, STATUS_COLOR } from '../graph/renderGraph'
+import {
+	isPrototypeFrame,
+	PROTOTYPE_HEADER_HEIGHT,
+	viewportOf,
+} from '../prototype/PrototypeShapeUtil'
 import type { ActivityTracker } from './activity'
 import type { CaptureScreenshot } from './screenshot'
 import { isClaudeShape, roleOf } from './shapeRoles'
@@ -143,6 +148,11 @@ function describeShape(editor: Editor, shape: TLShape): CanvasShape {
 		described.onFrontier = props.fill === 'solid'
 	}
 	if (isQuestionCard(shape)) described.question = questionOf(shape)
+	if (isPrototypeFrame(shape)) {
+		const { prototypeId, label, iterationOf } = shape.props
+		described.prototype = { id: prototypeId, label, ...viewportOf(shape) }
+		if (iterationOf) described.prototype.iterationOf = iterationOf
+	}
 	const diagram = diagramMeta(shape.meta)
 	if (diagram) {
 		described.diagram = {
@@ -173,7 +183,9 @@ function textOf(editor: Editor, shape: TLShape): string | undefined {
 	const props = shape.props as Partial<{ richText: TLRichText; name: string }>
 	let text: string | undefined
 	if (isQuestionCard(shape)) text = shape.props.question
-	else if (props.richText) text = renderPlaintextFromRichText(editor, props.richText)
+	else if (isPrototypeFrame(shape)) {
+		text = [shape.props.label, shape.props.caption].filter(Boolean).join('\n')
+	} else if (props.richText) text = renderPlaintextFromRichText(editor, props.richText)
 	else if (typeof props.name === 'string') text = props.name
 	text = text?.trim()
 	if (!text) return undefined
@@ -202,11 +214,12 @@ const ANCHOR_ROLES: ReadonlySet<string> = new Set([
 	'question_card',
 	'diagram_node',
 	'diagram_frame',
+	'prototype_frame',
 ])
 
 /**
- * The decision node, question card, diagram node or diagram frame a user
- * shape annotates: one it overlaps (the smallest, being the most specific, so
+ * The decision node, question card, diagram node, diagram frame or prototype
+ * frame a user shape annotates: one it overlaps (the smallest, being the most specific, so
  * a node wins over its frame), else the nearest within {@link ANCHOR_REACH}.
  * Arrows bound to a Claude shape anchor to it.
  */
@@ -245,15 +258,53 @@ function findAnchor(editor: Editor, shape: TLShape, bounds: Box): ShapeAnchor | 
 			best = { target, relation, score }
 		}
 	}
-	return best && anchorTo(editor, best.target, best.relation)
+	return best && anchorTo(editor, best.target, best.relation, bounds)
 }
 
-function anchorTo(editor: Editor, target: TLShape, relation: ShapeAnchor['relation']): ShapeAnchor {
-	return {
+function anchorTo(
+	editor: Editor,
+	target: TLShape,
+	relation: ShapeAnchor['relation'],
+	annotation?: Box,
+): ShapeAnchor {
+	const anchor: ShapeAnchor = {
 		shapeId: target.id,
 		role: roleOf(target),
 		relation,
 		label: textOf(editor, target)?.split('\n')[0] ?? '',
+	}
+	if (annotation && isPrototypeFrame(target)) {
+		const inPrototype = placeInPrototype(editor, target, annotation)
+		if (inPrototype) anchor.inPrototype = inPrototype
+	}
+	return anchor
+}
+
+/**
+ * Where an annotation lies over a prototype's viewport (ADR 0017), in the
+ * prototype's CSS pixels: the page units of the frame below its title bar
+ * map 1:1 to the iframe's pixels. Undefined when it misses the viewport.
+ */
+function placeInPrototype(
+	editor: Editor,
+	frame: Parameters<typeof viewportOf>[0],
+	annotation: Box,
+): ShapeAnchor['inPrototype'] {
+	const bounds = editor.getShapePageBounds(frame.id)
+	if (!bounds) return undefined
+	const { width, height } = viewportOf(frame)
+	if (width === 0 || height === 0) return undefined
+	const viewport = new Box(bounds.x, bounds.y + PROTOTYPE_HEADER_HEIGHT, width, height)
+	const minX = Math.max(annotation.minX, viewport.minX)
+	const minY = Math.max(annotation.minY, viewport.minY)
+	const maxX = Math.min(annotation.maxX, viewport.maxX)
+	const maxY = Math.min(annotation.maxY, viewport.maxY)
+	if (maxX < minX || maxY < minY) return undefined
+	return {
+		x: Math.round(minX - viewport.x),
+		y: Math.round(minY - viewport.y),
+		w: Math.round(maxX - minX),
+		h: Math.round(maxY - minY),
 	}
 }
 

@@ -151,3 +151,83 @@
 	font-size: 13px;
 	color: var(--tl-color-text-3, #777);
 }
+
+/* Prototype frame (apps/canvas/src/prototype/PrototypeShapeUtil.tsx) */
+
+.prototype-frame {
+	display: flex;
+	flex-direction: column;
+	border-radius: 10px;
+	/* A ring instead of a border, so the viewport keeps the frame's exact width (1:1 with the page). */
+	box-shadow:
+		0 0 0 2px hsl(262, 55%, 60%),
+		var(--tl-shadow-2);
+	background: hsl(262, 50%, 97%);
+	overflow: hidden;
+	font-family: var(--tl-font-sans, sans-serif);
+}
+
+.prototype-frame__header {
+	flex: none;
+	height: 56px;
+	padding: 6px 12px;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	gap: 2px;
+	color: var(--tl-color-text-1, #1d1d1d);
+	/* The canvas handles the title bar: drag the frame by it. */
+	pointer-events: none;
+}
+
+.prototype-frame__title {
+	display: flex;
+	align-items: baseline;
+	gap: 8px;
+	white-space: nowrap;
+	overflow: hidden;
+}
+
+.prototype-frame__kind {
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: hsl(262, 45%, 50%);
+}
+
+.prototype-frame__label {
+	font-size: 15px;
+	font-weight: 600;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.prototype-frame__iteration {
+	font-size: 12px;
+	color: var(--tl-color-text-3, #777);
+}
+
+.prototype-frame__caption {
+	font-size: 12px;
+	color: var(--tl-color-text-3, #666);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.prototype-frame__iframe {
+	display: block;
+	flex: none;
+	border: 0;
+	background: #fff;
+}
+
+.prototype-frame__placeholder {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: #fff;
+	color: var(--tl-color-text-3, #666);
+	font-size: 13px;
+}

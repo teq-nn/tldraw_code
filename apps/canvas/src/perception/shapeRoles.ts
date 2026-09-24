@@ -3,9 +3,11 @@ import type { TLShape } from 'tldraw'
 import { QUESTION_CARD_TYPE } from '../ask/QuestionCardShapeUtil'
 import { diagramMeta } from '../diagram/renderDiagrams'
 import { graphMeta } from '../graph/renderGraph'
+import { PROTOTYPE_FRAME_TYPE } from '../prototype/PrototypeShapeUtil'
 
 const ROLE_BY_TYPE: Record<string, ShapeRole> = {
 	[QUESTION_CARD_TYPE]: 'question_card',
+	[PROTOTYPE_FRAME_TYPE]: 'prototype_frame',
 	note: 'sticky_note',
 	draw: 'drawing',
 	highlight: 'drawing',
@@ -45,6 +47,7 @@ const CLAUDE_ROLES: ReadonlySet<ShapeRole> = new Set([
 	'diagram_frame',
 	'diagram_node',
 	'diagram_edge',
+	'prototype_frame',
 ])
 
 /** Marker in `shape.meta` of shapes a canvas tool drew without a domain role (e.g. the smoke test). */

@@ -9,6 +9,7 @@ import {
 } from './canvas'
 import { DiagramEdgeSchema, DiagramIdSchema, DiagramNodeSchema, MAX_COMPARE_ITEMS } from './diagram'
 import { DecisionNodeSchema, DependencyEdgeSchema } from './graph'
+import { PrototypeIdSchema, RenderPrototypeShape } from './prototype'
 
 const renderCounts = z.object({
 	created: z.number().int().nonnegative(),
@@ -115,6 +116,35 @@ export const canvasCommands = {
 			frameIds: z.array(z.string()),
 			nodes: renderCounts,
 			edges: renderCounts,
+		}),
+	},
+	/**
+	 * Show or update an HTML prototype in a sandboxed prototype frame
+	 * (ADR 0016, ADR 0017). Keyed by `id`: a repeated call replaces the HTML
+	 * in place. A new prototype with `iterationOf` goes right next to that
+	 * prototype, any other new one to the right of the page content.
+	 */
+	'prototype.render': {
+		payload: z.object({
+			id: PrototypeIdSchema,
+			label: RenderPrototypeShape.label,
+			html: RenderPrototypeShape.html,
+			caption: RenderPrototypeShape.caption,
+			iterationOf: PrototypeIdSchema.optional(),
+			width: RenderPrototypeShape.width,
+			height: RenderPrototypeShape.height,
+		}),
+		result: z.object({
+			shapeId: z.string(),
+			/** False when an existing prototype frame with this id was updated. */
+			created: z.boolean(),
+			/** Page bounds of the whole frame (header plus viewport). */
+			bounds: PageBoxSchema,
+			/** Viewport size in CSS px after the render. */
+			width: z.number(),
+			height: z.number(),
+			/** Shape id of the prototype this one iterates on, when given. */
+			iterationOfShapeId: z.string().optional(),
 		}),
 	},
 	/**

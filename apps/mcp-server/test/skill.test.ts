@@ -36,7 +36,7 @@ describe('canvas-grilling skill', () => {
 		expect(linked).toBe(realpathSync(skillPath))
 	})
 
-	it('only calls tools the MCP server offers, and uses ask, compare, render_graph, read_canvas and the tracker sync', async () => {
+	it('only calls tools the MCP server offers, and uses ask, compare, render_graph, read_canvas, prototypes and the tracker sync', async () => {
 		const offered = await toolNames()
 		const called = [...skill.matchAll(/[Cc]all `([a-z_]+)`/g)].map((match) => match[1])
 		expect(new Set(called)).toEqual(
@@ -46,6 +46,7 @@ describe('canvas-grilling skill', () => {
 				'ask',
 				'compare',
 				'render_diagram',
+				'render_prototype',
 				'sync_wayfinder_map',
 			]),
 		)

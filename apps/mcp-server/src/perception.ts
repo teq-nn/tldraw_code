@@ -18,6 +18,7 @@ const ROLE_NAMES: Record<ShapeRole, [singular: string, plural: string]> = {
 	diagram_frame: ['diagram frame', 'diagram frames'],
 	diagram_node: ['diagram node', 'diagram nodes'],
 	diagram_edge: ['diagram edge', 'diagram edges'],
+	prototype_frame: ['prototype', 'prototypes'],
 	sticky_note: ['sticky note', 'sticky notes'],
 	drawing: ['drawing', 'drawings'],
 	text: ['text', 'texts'],
@@ -72,6 +73,12 @@ function describeShape(shape: CanvasShape): string {
 		if (element) parts.push(shape.role === 'diagram_node' ? `"${element}"` : element)
 		parts.push(`in ${kind} "${id}" / "${frame}"${differs ? ' [differs]' : ''}`)
 	}
+	if (shape.prototype) {
+		const { id, iterationOf, width, height } = shape.prototype
+		parts.push(`"${id}"`)
+		if (iterationOf) parts.push(`(iteration of "${iterationOf}")`)
+		parts.push(`viewport ${width} x ${height} px`)
+	}
 	// A diagram frame's text is its title, already named above.
 	if (shape.text && shape.role !== 'diagram_frame') parts.push(JSON.stringify(shape.text))
 	if (shape.status) parts.push(`[${shape.status}${shape.onFrontier ? ', frontier' : ''}]`)
@@ -91,6 +98,8 @@ function describeShape(shape: CanvasShape): string {
 		parts.push(
 			`${relation} ${ROLE_NAMES[shape.anchor.role][0]} ${JSON.stringify(shape.anchor.label)} (${shape.anchor.shapeId})`,
 		)
+		const inside = shape.anchor.inPrototype
+		if (inside) parts.push(`over its ${describeBox(inside)} (prototype px)`)
 	}
 	if (shape.frameId) parts.push(`in frame ${shape.frameId}`)
 	parts.push(`· ${shape.id} at ${describeBox(shape.bounds)}`)

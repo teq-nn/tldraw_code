@@ -39,6 +39,7 @@ export const ShapeRoleSchema = z.enum([
 	'diagram_frame',
 	'diagram_node',
 	'diagram_edge',
+	'prototype_frame',
 	'sticky_note',
 	'drawing',
 	'text',
@@ -59,6 +60,19 @@ export const ShapeAnchorSchema = z.object({
 	relation: z.enum(['on', 'next_to']),
 	/** Short name of the anchor, e.g. the decision's title or the question. */
 	label: z.string(),
+	/**
+	 * Prototype frame anchors (ADR 0017): the part of the annotation that lies
+	 * over the prototype's viewport, in the prototype's own CSS pixels
+	 * (origin at its top-left corner), to match against its HTML layout.
+	 */
+	inPrototype: z
+		.object({
+			x: z.number(),
+			y: z.number(),
+			w: z.number().nonnegative(),
+			h: z.number().nonnegative(),
+		})
+		.optional(),
 })
 export type ShapeAnchor = z.infer<typeof ShapeAnchorSchema>
 
@@ -102,6 +116,17 @@ export const CanvasShapeSchema = z.object({
 			frame: z.string(),
 			element: z.string().optional(),
 			differs: z.boolean().optional(),
+		})
+		.optional(),
+	/** Prototype frame (`render_prototype`, ADR 0017): its id, label, and what it iterates on. */
+	prototype: z
+		.object({
+			id: z.string(),
+			label: z.string(),
+			iterationOf: z.string().optional(),
+			/** Viewport size in CSS px. */
+			width: z.number(),
+			height: z.number(),
 		})
 		.optional(),
 	/** Arrow / dependency: ids of the shapes its ends are bound to. */

@@ -8,10 +8,15 @@ import {
 	tipTapDefaultExtensions,
 } from 'tldraw'
 import { QuestionCardShapeUtil } from '../src/ask/QuestionCardShapeUtil'
+import { PrototypeShapeUtil } from '../src/prototype/PrototypeShapeUtil'
 
 /** A headless tldraw editor with the default shapes and ours, for tests running under jsdom. */
 export function createTestEditor(): Editor {
-	const shapeUtils: TLAnyShapeUtilConstructor[] = [...defaultShapeUtils, QuestionCardShapeUtil]
+	const shapeUtils: TLAnyShapeUtilConstructor[] = [
+		...defaultShapeUtils,
+		QuestionCardShapeUtil,
+		PrototypeShapeUtil,
+	]
 	return new Editor({
 		store: createTLStore({ shapeUtils, bindingUtils: defaultBindingUtils }),
 		shapeUtils,

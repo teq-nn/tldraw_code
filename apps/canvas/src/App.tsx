@@ -3,8 +3,9 @@ import { type Editor, type TLComponents, Tldraw } from 'tldraw'
 import { QuestionCardShapeUtil } from './ask/QuestionCardShapeUtil'
 import { useCanvasBridge } from './bridge/useCanvasBridge'
 import { BridgeStatusPill } from './components/BridgeStatusPill'
+import { PrototypeShapeUtil } from './prototype/PrototypeShapeUtil'
 
-const shapeUtils = [QuestionCardShapeUtil]
+const shapeUtils = [QuestionCardShapeUtil, PrototypeShapeUtil]
 
 /**
  * App shell derived from the tldraw Agent Starter Kit (MIT, see
