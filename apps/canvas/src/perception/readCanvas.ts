@@ -18,6 +18,7 @@ import {
 import type { QuestionCardShape } from '../ask/QuestionCardShapeUtil'
 import { getQuestionCards, isQuestionCard } from '../ask/showQuestion'
 import { answerOf, NOTE_REACH } from '../ask/watchQuestionCards'
+import { diagramMeta } from '../diagram/renderDiagrams'
 import { graphMeta, STATUS_COLOR } from '../graph/renderGraph'
 import type { ActivityTracker } from './activity'
 import type { CaptureScreenshot } from './screenshot'
@@ -142,6 +143,16 @@ function describeShape(editor: Editor, shape: TLShape): CanvasShape {
 		described.onFrontier = props.fill === 'solid'
 	}
 	if (isQuestionCard(shape)) described.question = questionOf(shape)
+	const diagram = diagramMeta(shape.meta)
+	if (diagram) {
+		described.diagram = {
+			kind: diagram.diagramKind,
+			id: diagram.diagramId,
+			frame: diagram.frameTitle,
+		}
+		if (diagram.element) described.diagram.element = diagram.element
+		if (diagram.differs) described.diagram.differs = true
+	}
 
 	if (shape.type === 'arrow') {
 		for (const binding of editor.getBindingsFromShape<TLArrowBinding>(shape.id, 'arrow')) {
@@ -185,16 +196,23 @@ function statusOfColor(color: string | undefined): DecisionStatus | undefined {
 	)
 }
 
+/** Claude's shapes a user shape can annotate. */
+const ANCHOR_ROLES: ReadonlySet<string> = new Set([
+	'decision_node',
+	'question_card',
+	'diagram_node',
+	'diagram_frame',
+])
+
 /**
- * The decision node or question card a user shape annotates: one it overlaps
- * (the smallest, being the most specific), else the nearest within
- * {@link ANCHOR_REACH}. Arrows bound to a Claude shape anchor to it.
+ * The decision node, question card, diagram node or diagram frame a user
+ * shape annotates: one it overlaps (the smallest, being the most specific, so
+ * a node wins over its frame), else the nearest within {@link ANCHOR_REACH}.
+ * Arrows bound to a Claude shape anchor to it.
  */
 function findAnchor(editor: Editor, shape: TLShape, bounds: Box): ShapeAnchor | undefined {
-	const isTarget = (target: TLShape | undefined): target is TLShape => {
-		const role = target && roleOf(target)
-		return role === 'decision_node' || role === 'question_card'
-	}
+	const isTarget = (target: TLShape | undefined): target is TLShape =>
+		target !== undefined && ANCHOR_ROLES.has(roleOf(target))
 	if (shape.type === 'arrow') {
 		// The pointed-at end wins over the tail.
 		const bindings = editor

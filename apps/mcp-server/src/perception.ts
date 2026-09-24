@@ -15,6 +15,9 @@ const ROLE_NAMES: Record<ShapeRole, [singular: string, plural: string]> = {
 	decision_node: ['decision node', 'decision nodes'],
 	dependency: ['dependency', 'dependencies'],
 	question_card: ['question card', 'question cards'],
+	diagram_frame: ['diagram frame', 'diagram frames'],
+	diagram_node: ['diagram node', 'diagram nodes'],
+	diagram_edge: ['diagram edge', 'diagram edges'],
 	sticky_note: ['sticky note', 'sticky notes'],
 	drawing: ['drawing', 'drawings'],
 	text: ['text', 'texts'],
@@ -64,7 +67,13 @@ function describeShape(shape: CanvasShape): string {
 	const parts = [shape.role === 'geo' && shape.geo ? shape.geo : ROLE_NAMES[shape.role][0]]
 	if (shape.role === 'decision_node' && shape.decisionId) parts.push(`"${shape.decisionId}"`)
 	if (shape.role === 'dependency' && shape.decisionId) parts.push(shape.decisionId)
-	if (shape.text) parts.push(JSON.stringify(shape.text))
+	if (shape.diagram) {
+		const { kind, id, frame, element, differs } = shape.diagram
+		if (element) parts.push(shape.role === 'diagram_node' ? `"${element}"` : element)
+		parts.push(`in ${kind} "${id}" / "${frame}"${differs ? ' [differs]' : ''}`)
+	}
+	// A diagram frame's text is its title, already named above.
+	if (shape.text && shape.role !== 'diagram_frame') parts.push(JSON.stringify(shape.text))
 	if (shape.status) parts.push(`[${shape.status}${shape.onFrontier ? ', frontier' : ''}]`)
 	if (shape.question) {
 		const options = shape.question.options.map((option, index) =>

@@ -1,10 +1,20 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
+import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js'
+import type {
+	CallToolResult,
+	ServerNotification,
+	ServerRequest,
+} from '@modelcontextprotocol/sdk/types.js'
 import {
+	type AlternativeDifferences,
 	type AskAnswer,
 	type CanvasCommandResult,
 	CanvasRegionSchema,
+	type CompareInput,
+	CompareSchema,
+	CompareShape,
 	computeFrontier,
+	diffAlternatives,
 	type FrontierGraph,
 	FrontierGraphSchema,
 	FrontierGraphShape,
@@ -12,6 +22,8 @@ import {
 	type Question,
 	QuestionSchema,
 	QuestionShape,
+	RenderDiagramSchema,
+	RenderDiagramShape,
 } from '@tldraw-code/protocol'
 import type { ZodError } from 'zod'
 import { z } from 'zod'
@@ -211,25 +223,112 @@ export function createMcpServer(bridge: CanvasBridge, options: McpServerOptions 
 				if (!parsed.success) {
 					throw new ToolInputError('invalid_question', describeIssues(parsed.error))
 				}
-				const progressToken = extra._meta?.progressToken
 				const outcome = await asks.ask(parsed.data, {
 					signal: extra.signal,
-					onHeartbeat:
-						progressToken === undefined
-							? undefined
-							: (waitedMs) =>
-									void extra
-										.sendNotification({
-											method: 'notifications/progress',
-											params: {
-												progressToken,
-												progress: Math.round(waitedMs / 1000),
-												message: 'Waiting for the answer on the canvas',
-											},
-										})
-										.catch(() => {}),
+					onHeartbeat: heartbeat(extra),
 				})
-				return describeAskOutcome(parsed.data, outcome, askTimings.timeoutMs)
+				return describeAskOutcome(parsed.data, outcome, askTimings.timeoutMs, 'ask')
+			}),
+	)
+
+	server.registerTool(
+		'render_diagram',
+		{
+			title: 'Render a diagram',
+			description:
+				'Draw a diagram on the canvas as native shapes the user can move, mark and sketch on: nodes ' +
+				'{id, label, look? box|ellipse|diamond} and directed edges {from, to, label?}, laid out left to ' +
+				"right in the same style as the frontier graph, inside a frame titled with the diagram's title. " +
+				'Pass the whole diagram every time; rendering again with the same id updates it in place. ' +
+				'A new diagram is placed to the right of what is on the canvas. To put alternatives side by side ' +
+				'and ask which one to take, use compare instead.',
+			inputSchema: RenderDiagramShape,
+		},
+		async (args) =>
+			withActivity(async () => {
+				const parsed = RenderDiagramSchema.safeParse(args)
+				if (!parsed.success)
+					throw new ToolInputError('invalid_diagram', describeIssues(parsed.error))
+				const { id, title, spec } = parsed.data
+				const result = await bridge.request('diagram.render', {
+					kind: 'diagram',
+					id,
+					frames: [
+						{
+							title: title ?? id,
+							nodes: spec.nodes,
+							edges: spec.edges,
+							highlight: { nodes: [], edges: [] },
+						},
+					],
+				})
+				return (
+					`Rendered diagram "${id}" in frame ${result.frameIds[0]}: ` +
+					describeCounts(spec.nodes.length, spec.edges.length, result)
+				)
+			}),
+	)
+
+	server.registerTool(
+		'compare',
+		{
+			title: 'Compare alternatives and ask',
+			description:
+				'Show 2 or 3 alternative diagrams side by side, each in its own frame, with what differs between ' +
+				'them highlighted in orange, and ask the user which to take: a question card is attached below ' +
+				'the frames (via ask), with one button per alternative, your recommendation marked, and "' +
+				`${KEEP_GRILLING_LABEL}". Use it for questions about structure or flow, instead of describing ` +
+				'alternatives in words. Each item is {label, caption?, spec} with spec like render_diagram. Give ' +
+				'the same element the same node id in every alternative: nodes are matched by id and edges by ' +
+				'their endpoints, and all frames share one layout, so common parts sit in the same place. ' +
+				'Blocks like ask and returns the answer; after "no answer yet", call compare again with the same ' +
+				'arguments to keep waiting (the frames and the card are kept). The frames stay on the canvas; ' +
+				'the next render_graph removes the answered card.',
+			inputSchema: CompareShape,
+		},
+		async (args, extra) =>
+			withActivity(async () => {
+				const parsed = CompareSchema.safeParse(args)
+				if (!parsed.success) {
+					throw new ToolInputError('invalid_comparison', describeIssues(parsed.error))
+				}
+				if (asks.isWaiting()) {
+					throw new ToolInputError(
+						'ask_in_progress',
+						'Another ask or compare call is still waiting for the user. Ask one question at a time.',
+					)
+				}
+				const input = parsed.data
+				const differences = diffAlternatives(input.items.map((item) => item.spec))
+				const rendered = await bridge.request('diagram.render', {
+					kind: 'comparison',
+					id: input.id,
+					frames: input.items.map((item, index) => ({
+						title: item.label,
+						...(item.caption ? { caption: item.caption } : {}),
+						nodes: item.spec.nodes,
+						edges: item.spec.edges,
+						highlight: {
+							nodes: differences[index]?.nodes.map((d) => d.id) ?? [],
+							edges: differences[index]?.edges.map((d) => d.id) ?? [],
+						},
+					})),
+				})
+				const question: Question = {
+					question: input.question,
+					options: input.items.map((item) => item.label),
+					recommendation: input.recommendation,
+				}
+				const outcome = await asks.ask(question, {
+					signal: extra.signal,
+					onHeartbeat: heartbeat(extra),
+					comparison: input.id,
+				})
+				return [
+					describeComparison(input, differences, rendered.frameIds),
+					'',
+					describeAskOutcome(question, outcome, askTimings.timeoutMs, 'compare'),
+				].join('\n')
 			}),
 	)
 
@@ -278,18 +377,42 @@ export function createMcpServer(bridge: CanvasBridge, options: McpServerOptions 
 	return server
 }
 
-function describeAskOutcome(question: Question, outcome: AskOutcome, timeoutMs: number): string {
+type ToolExtra = RequestHandlerExtra<ServerRequest, ServerNotification>
+
+/** Progress heartbeat for a blocking call, if the client asked for progress (ADR 0006). */
+function heartbeat(extra: ToolExtra): ((waitedMs: number) => void) | undefined {
+	const progressToken = extra._meta?.progressToken
+	if (progressToken === undefined) return undefined
+	return (waitedMs) =>
+		void extra
+			.sendNotification({
+				method: 'notifications/progress',
+				params: {
+					progressToken,
+					progress: Math.round(waitedMs / 1000),
+					message: 'Waiting for the answer on the canvas',
+				},
+			})
+			.catch(() => {})
+}
+
+function describeAskOutcome(
+	question: Question,
+	outcome: AskOutcome,
+	timeoutMs: number,
+	tool: 'ask' | 'compare',
+): string {
 	switch (outcome.kind) {
 		case 'answered':
 			return describeAnswer(question, outcome.answer)
 		case 'timeout':
 			return (
 				`No answer yet: the user has not answered within ${formatDuration(timeoutMs)}. ` +
-				'The question card stays open on the canvas. To keep waiting, call ask again with exactly ' +
-				'the same question, options and recommendation; an answer given in the meantime is returned at once.'
+				`The question card stays open on the canvas. To keep waiting, call ${tool} again with exactly ` +
+				'the same arguments; an answer given in the meantime is returned at once.'
 			)
 		case 'cancelled':
-			return 'The ask call was cancelled. The question card stays open on the canvas.'
+			return `The ${tool} call was cancelled. The question card stays open on the canvas.`
 	}
 }
 
@@ -305,6 +428,44 @@ function describeAnswer(question: Question, answer: AskAnswer): string {
 		case 'note':
 			return `The user answered with a sticky note instead of an option: "${answer.text}"`
 	}
+}
+
+/** What `compare` drew, with the differences it highlighted per alternative. */
+function describeComparison(
+	input: CompareInput,
+	differences: AlternativeDifferences[],
+	frameIds: string[],
+): string {
+	const lines = [
+		`Showing ${input.items.length} alternatives side by side for "${input.id}" (frames ${frameIds.join(', ')}); ` +
+			'a question card below them asks which to take.',
+	]
+	const any = differences.some((d) => d.nodes.length + d.edges.length > 0)
+	if (!any) {
+		lines.push('The alternatives have the same nodes and edges: nothing is highlighted.')
+		return lines.join('\n')
+	}
+	lines.push('Highlighted in orange as differences:')
+	input.items.forEach((item, index) => {
+		const diff = differences[index] ?? { nodes: [], edges: [] }
+		const list = (elements: typeof diff.nodes) =>
+			elements.map((e) => `${e.id}${e.kind === 'changed' ? ' (changed)' : ''}`).join(', ')
+		const parts = [
+			...(diff.nodes.length > 0 ? [`nodes ${list(diff.nodes)}`] : []),
+			...(diff.edges.length > 0 ? [`edges ${list(diff.edges)}`] : []),
+		]
+		lines.push(`- ${item.label}: ${parts.length > 0 ? parts.join('; ') : 'nothing of its own'}`)
+	})
+	return lines.join('\n')
+}
+
+function describeCounts(
+	nodeCount: number,
+	edgeCount: number,
+	{ nodes, edges }: Pick<CanvasCommandResult<'diagram.render'>, 'nodes' | 'edges'>,
+): string {
+	const counts = (c: typeof nodes) => `${c.created} new, ${c.updated} updated, ${c.removed} removed`
+	return `${nodeCount} nodes (${counts(nodes)}) and ${edgeCount} edges (${counts(edges)}).`
 }
 
 function formatDuration(ms: number): string {

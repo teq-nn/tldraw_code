@@ -1,5 +1,6 @@
 import type { CanvasCommandPayload, CanvasCommandResult } from '@tldraw-code/protocol'
 import { Box, createShapeId, type Editor, type TLShape, type TLShapeId } from 'tldraw'
+import { getDiagramFrames } from '../diagram/renderDiagrams'
 import {
 	estimateCardHeight,
 	QUESTION_CARD_TYPE,
@@ -30,7 +31,8 @@ export function getQuestionCards(editor: Editor): QuestionCardShape[] {
  * Show the question card for `askId` (ADR 0006). Idempotent: an existing card
  * for the same askId is kept untouched, so re-asking after a timeout neither
  * resets nor duplicates it. Every other question card is removed first, so
- * only one is ever on the canvas. The card goes below the frontier graph if
+ * only one is ever on the canvas. The card goes below the frames of the
+ * comparison it asks about (`compare`), else below the frontier graph if
  * there is one, else where the previous card was, else in the viewport centre.
  */
 export function showQuestion(editor: Editor, payload: ShowPayload): ShowResult {
@@ -43,7 +45,7 @@ export function showQuestion(editor: Editor, payload: ShowPayload): ShowResult {
 		if (editor.getShape(id)) return
 		const previous = others[0]
 		const h = estimateCardHeight(payload.question, payload.options.length)
-		const position = placeCard(editor, previous, h)
+		const position = placeCard(editor, previous, h, payload.comparison)
 		editor.createShape<QuestionCardShape>({
 			id,
 			type: QUESTION_CARD_TYPE,
@@ -67,7 +69,22 @@ export function showQuestion(editor: Editor, payload: ShowPayload): ShowResult {
 	return { shapeId: id, created }
 }
 
-function placeCard(editor: Editor, previous: QuestionCardShape | undefined, h: number) {
+function placeCard(
+	editor: Editor,
+	previous: QuestionCardShape | undefined,
+	h: number,
+	comparison: string | undefined,
+) {
+	// A comparison's question goes right under its frames (ADR 0015).
+	const frames = comparison ? getDiagramFrames(editor, 'comparison', comparison) : []
+	const framesBounds =
+		frames.length > 0 ? editor.getShapesPageBounds(frames.map((frame) => frame.id)) : undefined
+	if (framesBounds) {
+		return {
+			x: Math.round(framesBounds.center.x - QUESTION_CARD_WIDTH / 2),
+			y: Math.round(framesBounds.maxY + GAP_BELOW_GRAPH),
+		}
+	}
 	const graphIds = editor
 		.getCurrentPageShapes()
 		.filter((shape) => (shape.meta as { graphPart?: unknown }).graphPart === 'node')

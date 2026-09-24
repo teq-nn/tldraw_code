@@ -33,6 +33,8 @@ export interface AskCallOptions {
 	signal?: AbortSignal
 	/** Called every `heartbeatMs` while waiting, with the time waited so far. */
 	onHeartbeat?: (waitedMs: number) => void
+	/** The comparison the question is about (`compare`); its card goes below the frames. */
+	comparison?: string
 }
 
 /** The question card currently on the canvas, as far as the server knows. */
@@ -105,9 +107,15 @@ export class AskCoordinator {
 			question: question.question,
 			options: question.options,
 			recommendation: question.options.indexOf(question.recommendation),
+			...(options.comparison ? { comparison: options.comparison } : {}),
 		})
 		this.open = { askId, question }
 		return this.wait(askId, options)
+	}
+
+	/** Whether an `ask` call is waiting for the user right now. */
+	isWaiting(): boolean {
+		return this.waiter !== undefined
 	}
 
 	/** Whether a question card is open (shown and not yet answered to a waiting call). */

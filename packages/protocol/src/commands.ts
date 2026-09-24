@@ -7,6 +7,7 @@ import {
 	CanvasShapeSchema,
 	PageBoxSchema,
 } from './canvas'
+import { DiagramEdgeSchema, DiagramIdSchema, DiagramNodeSchema, MAX_COMPARE_ITEMS } from './diagram'
 import { DecisionNodeSchema, DependencyEdgeSchema } from './graph'
 
 const renderCounts = z.object({
@@ -68,11 +69,52 @@ export const canvasCommands = {
 			options: QuestionShape.options,
 			/** Index of Claude's recommendation in `options`. */
 			recommendation: z.number().int().nonnegative(),
+			/**
+			 * Place a new card below the frames of this comparison (`compare`,
+			 * ADR 0015) instead of below the frontier graph.
+			 */
+			comparison: DiagramIdSchema.optional(),
 		}),
 		result: z.object({
 			shapeId: z.string(),
 			/** False when an existing card for this askId was kept. */
 			created: z.boolean(),
+		}),
+	},
+	/**
+	 * Render or update diagrams in frames side by side (ADR 0015): one frame
+	 * for `render_diagram`, 2 or 3 for `compare`. The frames share one layout
+	 * in the house style of the frontier graph, so an element common to the
+	 * alternatives sits in the same place in every frame. Keyed by `kind` and
+	 * `id`: a repeated call updates the frames in place.
+	 */
+	'diagram.render': {
+		payload: z.object({
+			kind: z.enum(['diagram', 'comparison']),
+			id: DiagramIdSchema,
+			frames: z
+				.array(
+					z.object({
+						title: z.string().min(1),
+						/** One line shown at the top of the frame. */
+						caption: z.string().optional(),
+						nodes: z.array(DiagramNodeSchema),
+						edges: z.array(DiagramEdgeSchema),
+						/** Node ids and edge keys (`from->to`) to highlight as differences. */
+						highlight: z.object({
+							nodes: z.array(z.string()),
+							edges: z.array(z.string()),
+						}),
+					}),
+				)
+				.min(1)
+				.max(MAX_COMPARE_ITEMS),
+		}),
+		result: z.object({
+			/** Shape ids of the frames, in order. */
+			frameIds: z.array(z.string()),
+			nodes: renderCounts,
+			edges: renderCounts,
 		}),
 	},
 	/**

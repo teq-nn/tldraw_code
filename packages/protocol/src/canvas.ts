@@ -36,6 +36,9 @@ export const ShapeRoleSchema = z.enum([
 	'decision_node',
 	'dependency',
 	'question_card',
+	'diagram_frame',
+	'diagram_node',
+	'diagram_edge',
 	'sticky_note',
 	'drawing',
 	'text',
@@ -84,6 +87,21 @@ export const CanvasShapeSchema = z.object({
 			options: z.array(z.string()),
 			recommendation: z.number().int(),
 			answer: z.string().optional(),
+		})
+		.optional(),
+	/**
+	 * Diagram shapes (`render_diagram`, `compare`, ADR 0014, ADR 0015): which diagram or
+	 * comparison they belong to, the frame's title (for a comparison, the
+	 * alternative's label), the node id or edge key, and whether the element
+	 * is highlighted as a difference between the alternatives.
+	 */
+	diagram: z
+		.object({
+			kind: z.enum(['diagram', 'comparison']),
+			id: z.string(),
+			frame: z.string(),
+			element: z.string().optional(),
+			differs: z.boolean().optional(),
 		})
 		.optional(),
 	/** Arrow / dependency: ids of the shapes its ends are bound to. */

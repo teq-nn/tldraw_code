@@ -42,6 +42,9 @@ function startClient(handlers?: Partial<CommandHandlers>, statuses: BridgeStatus
 			'graph.render': () => {
 				throw new Error('not used in these tests')
 			},
+			'diagram.render': () => {
+				throw new Error('not used in these tests')
+			},
 			'ask.show': () => {
 				throw new Error('not used in these tests')
 			},

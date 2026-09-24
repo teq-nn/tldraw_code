@@ -47,47 +47,9 @@ export const FrontierGraphShape = {
 }
 
 /** A complete frontier graph: unique node ids, edges only between known nodes, no duplicates. */
-export const FrontierGraphSchema = z.object(FrontierGraphShape).superRefine((graph, ctx) => {
-	const ids = new Set<string>()
-	graph.nodes.forEach((node, index) => {
-		if (ids.has(node.id)) {
-			ctx.addIssue({
-				code: 'custom',
-				path: ['nodes', index, 'id'],
-				message: `duplicate node id '${node.id}'`,
-			})
-		}
-		ids.add(node.id)
-	})
-	const edgeKeys = new Set<string>()
-	graph.edges.forEach((edge, index) => {
-		for (const end of ['from', 'to'] as const) {
-			if (!ids.has(edge[end])) {
-				ctx.addIssue({
-					code: 'custom',
-					path: ['edges', index, end],
-					message: `edge ${end} '${edge[end]}' is not a node id`,
-				})
-			}
-		}
-		if (edge.from === edge.to) {
-			ctx.addIssue({
-				code: 'custom',
-				path: ['edges', index],
-				message: `node '${edge.from}' cannot depend on itself`,
-			})
-		}
-		const key = edgeKey(edge)
-		if (edgeKeys.has(key)) {
-			ctx.addIssue({
-				code: 'custom',
-				path: ['edges', index],
-				message: `duplicate edge ${edge.from} -> ${edge.to}`,
-			})
-		}
-		edgeKeys.add(key)
-	})
-})
+export const FrontierGraphSchema = z
+	.object(FrontierGraphShape)
+	.superRefine((graph, ctx) => checkNodesAndEdges(graph, ctx))
 export type FrontierGraph = z.infer<typeof FrontierGraphSchema>
 
 /** Stable identity of an edge, used to update rather than duplicate its arrow. */
@@ -107,4 +69,56 @@ export function computeFrontier(graph: Pick<FrontierGraph, 'nodes' | 'edges'>): 
 	return graph.nodes
 		.filter((node) => node.status === 'open' && !unresolvedBlockers.has(node.id))
 		.map((node) => node.id)
+}
+
+/**
+ * Structural checks shared by frontier graphs and diagram specs: unique node
+ * ids, edges only between known nodes, no self-edges, no duplicate edges.
+ * Issues are reported on `nodes.<i>.id` / `edges.<i>[.from|.to]`, relative
+ * to `path`.
+ */
+export function checkNodesAndEdges(
+	graph: { nodes: readonly { id: string }[]; edges: readonly DependencyEdge[] },
+	ctx: z.RefinementCtx,
+	path: (string | number)[] = [],
+): void {
+	const ids = new Set<string>()
+	graph.nodes.forEach((node, index) => {
+		if (ids.has(node.id)) {
+			ctx.addIssue({
+				code: 'custom',
+				path: [...path, 'nodes', index, 'id'],
+				message: `duplicate node id '${node.id}'`,
+			})
+		}
+		ids.add(node.id)
+	})
+	const edgeKeys = new Set<string>()
+	graph.edges.forEach((edge, index) => {
+		for (const end of ['from', 'to'] as const) {
+			if (!ids.has(edge[end])) {
+				ctx.addIssue({
+					code: 'custom',
+					path: [...path, 'edges', index, end],
+					message: `edge ${end} '${edge[end]}' is not a node id`,
+				})
+			}
+		}
+		if (edge.from === edge.to) {
+			ctx.addIssue({
+				code: 'custom',
+				path: [...path, 'edges', index],
+				message: `edge cannot connect node '${edge.from}' to itself`,
+			})
+		}
+		const key = edgeKey(edge)
+		if (edgeKeys.has(key)) {
+			ctx.addIssue({
+				code: 'custom',
+				path: [...path, 'edges', index],
+				message: `duplicate edge ${edge.from} -> ${edge.to}`,
+			})
+		}
+		edgeKeys.add(key)
+	})
 }

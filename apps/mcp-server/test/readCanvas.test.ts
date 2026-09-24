@@ -172,6 +172,51 @@ describe('read_canvas', () => {
 		expect(claude).toContain('options: SQLite (recommended), Postgres; answer: none yet')
 	})
 
+	it('names diagram shapes by their comparison, alternative and element, and what differs', async () => {
+		const canvas = await connectCanvas()
+		const frame: CanvasShape = {
+			id: 'shape:diagram-frame:comparison:ingest#1',
+			type: 'frame',
+			role: 'diagram_frame',
+			owner: 'claude',
+			bounds: { x: 0, y: 0, w: 600, h: 300 },
+			text: 'Queued',
+			diagram: { kind: 'comparison', id: 'ingest', frame: 'Queued' },
+		}
+		const queue: CanvasShape = {
+			id: 'shape:diagram-node:comparison:ingest#1/queue',
+			type: 'geo',
+			role: 'diagram_node',
+			owner: 'claude',
+			bounds: { x: 200, y: 100, w: 180, h: 70 },
+			text: 'Queue',
+			frameId: frame.id,
+			diagram: {
+				kind: 'comparison',
+				id: 'ingest',
+				frame: 'Queued',
+				element: 'queue',
+				differs: true,
+			},
+		}
+		const remark: CanvasShape = {
+			...note,
+			text: 'Too slow?',
+			anchor: { shapeId: queue.id, role: 'diagram_node', relation: 'on', label: 'Queue' },
+		}
+		answerRead(canvas, { ...readResult, shapes: [remark, frame, queue] })
+
+		const lines = textOf(await readCanvas()).split('\n')
+
+		expect(lines.find((line) => line.includes('sticky note'))).toContain('on diagram node "Queue"')
+		expect(lines.find((line) => line.startsWith('- diagram node'))).toContain(
+			'diagram node "queue" in comparison "ingest" / "Queued" [differs] "Queue"',
+		)
+		expect(lines.find((line) => line.startsWith('- diagram frame'))).toBe(
+			'- diagram frame in comparison "ingest" / "Queued" · shape:diagram-frame:comparison:ingest#1 at x 0, y 0, 600 x 300',
+		)
+	})
+
 	it('says so when the canvas is empty', async () => {
 		const canvas = await connectCanvas()
 		answerRead(canvas, { region: null, shapes: [], omitted: 0, screenshot: null })

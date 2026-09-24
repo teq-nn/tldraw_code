@@ -1,5 +1,6 @@
 import { createShapeId, type Editor, toRichText } from 'tldraw'
 import { showQuestion } from '../ask/showQuestion'
+import { renderDiagrams } from '../diagram/renderDiagrams'
 import { renderGraph } from '../graph/renderGraph'
 import type { ActivityTracker } from '../perception/activity'
 import { readCanvas } from '../perception/readCanvas'
@@ -44,6 +45,7 @@ export function createCommandHandlers(
 				return { shapeId: id }
 			}),
 		'graph.render': (payload) => asClaude(() => renderGraph(editor, payload)),
+		'diagram.render': (payload) => asClaude(() => renderDiagrams(editor, payload)),
 		'ask.show': (payload) => asClaude(() => showQuestion(editor, payload)),
 		'canvas.read': (payload) => readCanvas(editor, payload, { capture, activity }),
 		'canvas.activity': () =>
