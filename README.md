@@ -25,6 +25,8 @@ pnpm dev            # canvas at http://127.0.0.1:5173 - open it in your browser
 
 Then, in another terminal, start Claude Code in the repo root. It picks up the `tldraw-canvas` MCP server from [`.mcp.json`](.mcp.json) (approve it when asked; check with `/mcp`). The pill at the top of the canvas turns green ("Claude Code connected") once the server is running and the tab has connected. Ask Claude to call the `canvas_smoke_test` tool and a labelled rectangle appears in the middle of the canvas.
 
+The main tool is `render_graph`: Claude passes the whole frontier graph (decision nodes with an id, title, status `open` / `resolved` / `blocked` and optional note, plus dependency edges `{ from, to }` meaning "from must be resolved before to"). The canvas lays it out left to right, colours nodes by status (blue / green / red), highlights the frontier and updates the existing shapes on every further call. Schema and semantics: [ADR 0005](docs/adr/0005-render-graph-input-schema-and-update-semantics.md); layout: [ADR 0004](docs/adr/0004-graph-layout-with-dagre-in-the-canvas.md).
+
 Without Claude Code, `pnpm smoke ["label"]` spawns the MCP server over stdio exactly like Claude Code does, waits up to 30 s for the canvas tab to connect, and calls `canvas_smoke_test`.
 
 Configuration:
@@ -36,7 +38,7 @@ Configuration:
 ## Development
 
 ```sh
-pnpm test        # vitest: protocol, MCP tools against a fake canvas, canvas bridge client and command handlers
+pnpm test        # vitest: protocol and frontier, MCP tools against a fake canvas, canvas bridge client, command handlers and graph layout
 pnpm typecheck   # tsc in every package
 pnpm lint        # biome (lint + format check); `pnpm format` fixes
 pnpm build       # production build of the canvas

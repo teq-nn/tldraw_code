@@ -46,9 +46,25 @@ _Avoid_: notification
 A shape on the canvas standing for one wayfinder ticket or grilling decision, with a status of open, resolved or blocked.
 _Avoid_: ticket shape, card
 
+**Dependency**:
+A directed edge between two decision nodes: the blocker (`from`) must be resolved before the dependent (`to`) can be decided.
+_Avoid_: link, relation, prerequisite
+
+**Blocker**:
+The `from` end of a dependency. Not the same as the status blocked, which marks a decision parked for reasons outside the graph.
+_Avoid_: parent, predecessor
+
 **Frontier**:
-The set of open decisions whose blockers are all resolved, i.e. what can be worked on next.
+The set of open decisions whose blockers are all resolved, i.e. what can be worked on next. Always derived from statuses and dependencies, never stated.
 _Avoid_: backlog, next steps
+
+**Frontier graph**:
+All decision nodes and dependencies of one session, as passed whole to `render_graph` and drawn on the canvas with the frontier highlighted (ADR 0005).
+_Avoid_: tech tree, map, roadmap
+
+**Note**:
+The optional one-line label under a decision node's title, e.g. the answer a resolved decision got.
+_Avoid_: description, comment
 
 **Question card**:
 A shape showing one short question with 2 to 4 answer buttons and Claude's recommendation marked.
