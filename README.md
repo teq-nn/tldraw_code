@@ -10,6 +10,8 @@ Canvas-first grilling and wayfinder sessions with Claude Code: Claude draws deci
 | `apps/mcp-server` | Local MCP server (stdio) hosting the WebSocket bridge ([ADR 0001](docs/adr/0001-mcp-server-in-typescript-on-node.md)) |
 | `packages/protocol` | Bridge envelope schema and command catalog shared by both ([ADR 0002](docs/adr/0002-bridge-topology-and-envelope-schema.md)) |
 | `.agents/skills/canvas-grilling` | The canvas grilling skill (linked from `.claude/skills`) ([ADR 0011](docs/adr/0011-canvas-grilling-skill.md)) |
+| `.agents/skills/canvas-wayfinder` | The canvas wayfinder skill (linked from `.claude/skills`) ([ADR 0022](docs/adr/0022-canvas-wayfinder-skill.md)) |
+| `scripts/wayfinder-demo.ts` | A scripted wayfinder session against a fixture tracker (`pnpm demo:wayfinder`, [ADR 0023](docs/adr/0023-fixture-tracker-and-scripted-wayfinder-demo.md)) |
 
 ```
 Claude Code --stdio/MCP--> apps/mcp-server --WebSocket ws://127.0.0.1:4477--> apps/canvas (browser tab)
@@ -39,6 +41,22 @@ To pick up an interrupted session, ask Claude to continue it: for a wayfinder ma
 
 The terminal only shows tool calls and a short status line; there is nothing to read there. Why it works this way: [ADR 0011](docs/adr/0011-canvas-grilling-skill.md).
 
+## A wayfinder session on the canvas
+
+A wayfinder map is an issue on the tracker (labelled `wayfinder:map`) whose child issues are decision tickets; see the [`wayfinder`](.agents/skills/wayfinder/SKILL.md) skill for how to chart one. To work through it on the canvas, end to end:
+
+1. **Start the canvas**: `pnpm install`, then `pnpm dev`, and open http://127.0.0.1:5173.
+2. **Start Claude Code** in the repo root and approve the `tldraw-canvas` MCP server; the pill on the canvas turns green. The tracker sync reads GitHub with `GH_TOKEN`, `GITHUB_TOKEN` or your `gh` login (see Configuration).
+3. **Ask for it**: "work through wayfinder map #12 on the canvas" (or `/canvas-wayfinder #12`). The [`canvas-wayfinder`](.agents/skills/canvas-wayfinder/SKILL.md) skill takes over:
+   - The map appears as a frontier graph (`sync_wayfinder_map`): resolved tickets green with their gist, the frontier highlighted in blue, blocked tickets red. To choose the ticket, stick a note on a frontier node; otherwise Claude takes the first one.
+   - Claude claims the ticket on the tracker and syncs: its node turns amber (in progress).
+   - Claude asks the ticket's decision in the form that needs the least reading: a question card for named options (`ask`), two or three diagrams side by side for a structure or flow, or two or three clickable prototypes side by side for a UI (`compare`). Answer by clicking, by "Keep grilling", or with a sticky note; scribble on a prototype to get an iteration.
+   - After every answer the tracker changes and the canvas follows: a chosen alternative is pinned to the ticket's node by a green "chosen" arrow and the others collapse with the reason they lost (`settle_comparison`); a resolved ticket turns green with its gist; "Keep grilling" adds narrower tickets (amber) in front of it, asked next.
+   - When the ticket is closed, a card offers the next frontier ticket. "Stop here" ends the session with the map on the canvas; the tickets hold every decision.
+4. **Resume later** the same way: the sync redraws the map from the tickets, and a ticket still claimed by you is where the session continues.
+
+**Try it without a map or Claude Code**: with `pnpm dev` running and the canvas open, run `pnpm demo:wayfinder`. The script plays Claude over stdio against the real MCP server with a fixture map "Settings sync" (tickets in a temporary JSON file, no GitHub writes): a data-flow question as a diagram comparison, then a settings-page question as a prototype comparison, with the choices settled, the tickets closed and the map re-synced after each answer. You answer on the canvas; the terminal logs each tracker write. Details: [ADR 0023](docs/adr/0023-fixture-tracker-and-scripted-wayfinder-demo.md).
+
 ## The canvas tools
 
 The main tool is `render_graph`: Claude passes the whole frontier graph (decision nodes with an id, title, status `open` / `in_progress` / `resolved` / `blocked` and optional note, plus dependency edges `{ from, to }` meaning "from must be resolved before to"). The canvas lays it out left to right, colours nodes by status (blue / amber / green / red; `in_progress` is a decision being worked on right now, off the frontier), highlights the frontier and updates the existing shapes on every further call. Schema and semantics: [ADR 0005](docs/adr/0005-render-graph-input-schema-and-update-semantics.md); layout: [ADR 0004](docs/adr/0004-graph-layout-with-dagre-in-the-canvas.md).
@@ -65,16 +83,17 @@ Configuration:
 - `CANVAS_BRIDGE_PORT` (MCP server, default `4477`) and `VITE_CANVAS_BRIDGE_URL` (canvas, default `ws://127.0.0.1:4477`) move the bridge, e.g. to run two Claude Code sessions side by side.
 - Only one canvas tab is active at a time: opening a new tab takes over from the old one.
 - `pnpm mcp` runs the MCP server by hand (stdio; logs go to stderr).
+- `CANVAS_TRACKER_FIXTURE` (MCP server) reads wayfinder maps from a JSON fixture file (`{ repo, issues }`) instead of GitHub, re-read on every sync; `pnpm demo:wayfinder` uses it.
 - Tracker sync (MCP server): the GitHub token is `GH_TOKEN`, else `GITHUB_TOKEN`, else your `gh` login (`gh auth token`); without one only public repositories can be read (60 requests per hour). The repository is the one named in the map argument, else `CANVAS_TRACKER_REPO` (`owner/name`), else the `origin` remote of the repo Claude Code runs in. `GITHUB_API_URL` targets GitHub Enterprise. Behind an HTTPS proxy, start Claude Code with `NODE_USE_ENV_PROXY=1` so the server's `fetch` uses it.
 
 ## Development
 
 ```sh
-pnpm test        # vitest: protocol, frontier, question, diagram and prototype schemas and the diff of alternatives, MCP tools (incl. ask, compare, render_diagram, render_prototype, read_canvas and the activity digest) against a fake canvas, canvas bridge client, command handlers, graph layout, diagram frames and comparisons, prototype frames (placement, iterations, annotation anchors, sandbox policy), question card and answer watcher, canvas reads and activity tracking, collapsing answered cards, the tracker sync (ticket-to-node mapping, body conventions, `sync_wayfinder_map` against a fake GitHub), and the canvas-grilling skill against the registered tools
+pnpm test        # vitest: protocol, frontier, question, diagram and prototype schemas and the diff of alternatives, MCP tools (incl. ask, compare, render_diagram, render_prototype, read_canvas and the activity digest) against a fake canvas, canvas bridge client, command handlers, graph layout, diagram frames and comparisons, prototype frames (placement, iterations, annotation anchors, sandbox policy), question card and answer watcher, canvas reads and activity tracking, collapsing answered cards, the tracker sync (ticket-to-node mapping, body conventions, `sync_wayfinder_map` against a fake GitHub, the fixture file tracker), comparisons of prototypes and settling comparisons (`settle_comparison`, collapsed alternatives, the choice pin), and the canvas-grilling and canvas-wayfinder skills against the registered tools
 pnpm typecheck   # tsc in every package
 pnpm lint        # biome (lint + format check); `pnpm format` fixes
 pnpm build       # production build of the canvas
 pnpm check       # all of the above
 ```
 
-Tests exercise the MCP tool interface against a fake canvas that speaks the bridge protocol over a real WebSocket (`apps/mcp-server/test/fakeCanvas.ts`), per the testing seam proposed in the spec. New canvas tools add a command to `packages/protocol/src/commands.ts`, a handler in `apps/canvas/src/bridge/commandHandlers.ts` (the compiler enforces it) and a tool in `apps/mcp-server/src/server.ts`.
+Tests exercise the MCP tool interface against a fake canvas that speaks the bridge protocol over a real WebSocket (`apps/mcp-server/test/fakeCanvas.ts`), per the testing seam proposed in the spec. Blocking tools are tested on a manual clock and event-driven waits (`apps/mcp-server/test/timing.ts`), never on sleeps ([ADR 0019](docs/adr/0019-ask-timing-early-answers-and-a-manual-clock.md)). New canvas tools add a command to `packages/protocol/src/commands.ts`, a handler in `apps/canvas/src/bridge/commandHandlers.ts` (the compiler enforces it) and a tool in `apps/mcp-server/src/server.ts`.

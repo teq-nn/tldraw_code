@@ -1,0 +1,3 @@
+interface:
+  display_name: "Canvas Wayfinder"
+  short_description: "Work through a wayfinder map on the tldraw canvas, one ticket's question at a time"

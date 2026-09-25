@@ -1,5 +1,6 @@
 import { ToolInputError } from '../errors'
 import { deriveMapGraph, type MapGraph, refOf } from './deriveGraph'
+import { fixtureFileApi, readFixture } from './fixture'
 import {
 	createGitHubApi,
 	detectRepo,
@@ -12,6 +13,13 @@ import {
 import { loadWayfinderMap, parseMapRef, type WayfinderMap } from './loadMap'
 
 export { deriveMapGraph, type MapGraph, nodeId } from './deriveGraph'
+export {
+	FixtureGitHub,
+	type FixtureIssue,
+	fixtureFileApi,
+	readFixture,
+	type TrackerFixture,
+} from './fixture'
 export { createGitHubApi, type GitHubApi, parseRepo, type RepoRef } from './github'
 export { type GitHubIssue, loadWayfinderMap, parseMapRef, type Ticket } from './loadMap'
 
@@ -25,8 +33,22 @@ export interface TrackerOptions {
 	repo: () => Promise<RepoRef | undefined>
 }
 
-/** GitHub Issues of the repo the server runs in, read with the user's `gh` login or token. */
+/**
+ * GitHub Issues of the repo the server runs in, read with the user's `gh`
+ * login or token; or, with `CANVAS_TRACKER_FIXTURE` set, the fixture file it
+ * names (ADR 0023).
+ */
 export function defaultTrackerOptions(env: NodeJS.ProcessEnv = process.env): TrackerOptions {
+	const fixture = env.CANVAS_TRACKER_FIXTURE?.trim()
+	if (fixture) {
+		const api = fixtureFileApi(fixture)
+		return {
+			api: async () => api,
+			// The fixture's own repository, unless CANVAS_TRACKER_REPO names another.
+			repo: async () =>
+				env.CANVAS_TRACKER_REPO ? detectRepo(env) : parseRepo((await readFixture(fixture)).repo),
+		}
+	}
 	let api: Promise<GitHubApi> | undefined
 	return {
 		api: () => {

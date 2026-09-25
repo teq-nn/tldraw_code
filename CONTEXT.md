@@ -90,6 +90,10 @@ _Avoid_: dismiss, close, archive
 One run of the `canvas-grilling` skill: Claude maps the plan's decisions as a frontier graph, then asks one frontier decision at a time through `ask` and records each answer with `render_graph`, until the frontier is empty and the user confirms on the canvas (ADR 0011).
 _Avoid_: interview, round (the terminal skill's batch of questions)
 
+**Wayfinder session**:
+One run of the `canvas-wayfinder` skill on a wayfinder map: Claude syncs the map to the canvas, claims a frontier ticket and asks its decision in the lightest form (card, diagram comparison or prototype comparison), records every answer on the tracker and syncs again, until the ticket is closed (ADR 0022).
+_Avoid_: planning session, map session
+
 **No answer yet**:
 What `ask` returns when the user has not answered within the timeout (10 minutes). Not an error: the session goes on and the card stays open.
 _Avoid_: timeout error, failure

@@ -20,6 +20,8 @@ import {
 } from 'tldraw'
 import { collapseAnsweredQuestion } from '../ask/collapseQuestion'
 import { choicePinMeta } from '../comparison/comparisonFrames'
+import { diagramMeta } from '../diagram/renderDiagrams'
+import { PROTOTYPE_FRAME_TYPE } from '../prototype/PrototypeShapeUtil'
 import { layoutGraph } from './layout'
 
 type RenderPayload = CanvasCommandPayload<'graph.render'>
@@ -145,9 +147,13 @@ export function renderGraph(editor: Editor, payload: RenderPayload): RenderResul
 			return { id: node.id, w: bounds?.w ?? NODE_WIDTH, h: bounds?.h ?? NODE_MIN_HEIGHT }
 		})
 		const layout = layoutGraph(sized, payload.edges)
-		const origin = previousMeta
-			? { x: previousMeta.originX, y: previousMeta.originY }
-			: centredOrigin(editor, layout.width, layout.height)
+		const origin = clearOfRows(
+			editor,
+			previousMeta
+				? { x: previousMeta.originX, y: previousMeta.originY }
+				: centredOrigin(editor, layout.width, layout.height),
+			layout,
+		)
 
 		editor.updateShapes<TLGeoShape>(
 			payload.nodes.map((node) => {
@@ -242,6 +248,38 @@ function arrowBinding(
 			snap: 'none',
 		},
 	}
+}
+
+/** Space kept between the graph and the rows of diagrams and prototypes to its right. */
+const ROW_GAP = 80
+
+/**
+ * Keep a growing graph out of the rows of diagram and prototype frames placed
+ * to its right (ADR 0015, ADR 0017): when the graph at `origin` would run into
+ * one, it moves left by the overlap, so everything else stays where the user
+ * saw it. Frames the graph lies to the right of are left alone.
+ */
+function clearOfRows(
+	editor: Editor,
+	origin: { x: number; y: number },
+	layout: { width: number; height: number },
+): { x: number; y: number } {
+	const graph = new Box(origin.x, origin.y, layout.width, layout.height)
+	const rows = editor
+		.getCurrentPageShapes()
+		.filter((shape) => shape.parentId === editor.getCurrentPageId())
+		.filter(
+			(shape) =>
+				shape.type === PROTOTYPE_FRAME_TYPE || diagramMeta(shape.meta)?.diagramPart === 'frame',
+		)
+		.flatMap((shape) => {
+			const bounds = editor.getShapePageBounds(shape.id)
+			return bounds && bounds.minX > graph.minX ? [bounds] : []
+		})
+		.filter((bounds) => Box.Collides(Box.ExpandBy(graph, ROW_GAP), bounds))
+	if (rows.length === 0) return origin
+	const limit = Math.min(...rows.map((bounds) => bounds.minX)) - ROW_GAP
+	return { x: Math.round(Math.min(origin.x, limit - layout.width)), y: origin.y }
 }
 
 /** Place a new graph centred in the current viewport. */

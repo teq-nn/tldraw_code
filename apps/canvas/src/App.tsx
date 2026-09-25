@@ -1,11 +1,17 @@
 import { useMemo, useState } from 'react'
-import { type Editor, type TLComponents, Tldraw } from 'tldraw'
+import { type Editor, FrameShapeUtil, type TLComponents, Tldraw } from 'tldraw'
 import { QuestionCardShapeUtil } from './ask/QuestionCardShapeUtil'
 import { useCanvasBridge } from './bridge/useCanvasBridge'
+import { hideCollapsedContent } from './comparison/comparisonFrames'
 import { BridgeStatusPill } from './components/BridgeStatusPill'
 import { PrototypeShapeUtil } from './prototype/PrototypeShapeUtil'
 
-const shapeUtils = [QuestionCardShapeUtil, PrototypeShapeUtil]
+// Frames show their colour, so a settled comparison's chosen alternative stands out in green (ADR 0021).
+const shapeUtils = [
+	QuestionCardShapeUtil,
+	PrototypeShapeUtil,
+	FrameShapeUtil.configure({ showColors: true }),
+]
 
 /**
  * App shell derived from the tldraw Agent Starter Kit (MIT, see
@@ -27,6 +33,7 @@ export function App() {
 				persistenceKey="tldraw-code-canvas"
 				shapeUtils={shapeUtils}
 				components={components}
+				getShapeVisibility={hideCollapsedContent}
 				onMount={setEditor}
 			/>
 		</div>

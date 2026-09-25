@@ -7,8 +7,8 @@ import { describe, expect, it } from 'vitest'
 import { CanvasBridge } from '../src/bridge'
 import { createMcpServer } from '../src/server'
 
-// The canvas grilling skill (ADR 0010) drives the tools by name and quotes
-// their behaviour; these checks catch the skill drifting from the server.
+// The canvas skills (ADR 0011, ADR 0022) drive the tools by name and quote
+// their behaviour; these checks catch a skill drifting from the server.
 
 const repoRoot = fileURLToPath(new URL('../../../', import.meta.url))
 const skillPath = `${repoRoot}.agents/skills/canvas-grilling/SKILL.md`
@@ -56,5 +56,52 @@ describe('canvas-grilling skill', () => {
 
 	it('quotes the label of the extra button on every question card', () => {
 		expect(skill).toContain(KEEP_GRILLING_LABEL)
+	})
+})
+
+describe('canvas-wayfinder skill', () => {
+	const path = `${repoRoot}.agents/skills/canvas-wayfinder/SKILL.md`
+	const text = readFileSync(path, 'utf8')
+	const mentioned = new Set([...text.matchAll(/`([a-z]+(?:_[a-z]+)*)`/g)].map((match) => match[1]))
+
+	it('has frontmatter naming the skill and saying when to use it', () => {
+		const frontmatter = /^---\n([\s\S]*?)\n---\n/.exec(text)?.[1] ?? ''
+		expect(frontmatter).toMatch(/^name: canvas-wayfinder$/m)
+		expect(frontmatter).toMatch(/^description: .*Use when/m)
+	})
+
+	it('is the same file for Claude Code (.claude/skills links to .agents/skills)', () => {
+		const linked = realpathSync(`${repoRoot}.claude/skills/canvas-wayfinder/SKILL.md`)
+		expect(linked).toBe(realpathSync(path))
+	})
+
+	it('only calls tools the MCP server offers', async () => {
+		const offered = await toolNames()
+		const called = [...text.matchAll(/[Cc]all `([a-z_]+)`/g)].map((match) => match[1])
+		expect(called.length).toBeGreaterThan(0)
+		for (const name of called) expect(offered).toContain(name)
+	})
+
+	it('uses every question form, settles comparisons and records through the tracker sync', async () => {
+		const offered = await toolNames()
+		for (const tool of [
+			'sync_wayfinder_map',
+			'read_canvas',
+			'ask',
+			'compare',
+			'settle_comparison',
+			'render_prototype',
+		]) {
+			expect(mentioned).toContain(tool)
+			expect(offered).toContain(tool)
+		}
+		// The tickets are the record: the graph comes from the tracker, never from render_graph.
+		expect(mentioned).not.toContain('render_graph')
+		expect(text).toContain('`spec`')
+		expect(text).toContain('`html`')
+	})
+
+	it('quotes the label of the extra button on every question card', () => {
+		expect(text).toContain(KEEP_GRILLING_LABEL)
 	})
 })

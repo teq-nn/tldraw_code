@@ -11,7 +11,9 @@ import { QuestionCardShapeUtil } from '../src/ask/QuestionCardShapeUtil'
 import { PrototypeShapeUtil } from '../src/prototype/PrototypeShapeUtil'
 
 /** A headless tldraw editor with the default shapes and ours, for tests running under jsdom. */
-export function createTestEditor(): Editor {
+export function createTestEditor(
+	options: Pick<ConstructorParameters<typeof Editor>[0], 'getShapeVisibility'> = {},
+): Editor {
 	const shapeUtils: TLAnyShapeUtilConstructor[] = [
 		...defaultShapeUtils,
 		QuestionCardShapeUtil,
@@ -23,6 +25,7 @@ export function createTestEditor(): Editor {
 		bindingUtils: defaultBindingUtils,
 		tools: [],
 		getContainer: () => document.body,
+		...options,
 		// <Tldraw> normally supplies these; a bare Editor needs them to measure rich text.
 		options: {
 			text: {

@@ -1,11 +1,17 @@
+import { mkdtempSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
 	createGitHubApi,
+	defaultTrackerOptions,
 	deriveMapGraph,
 	loadWayfinderMap,
 	parseMapRef,
 	parseRepo,
 	type RepoRef,
+	resolveMapTarget,
+	syncMap,
 } from '../src/tracker'
 import { blockerRefs, decisionGists, issueRefs, taskListRefs } from '../src/tracker/markdown'
 import { FakeGitHub } from './fakeGitHub'
@@ -241,5 +247,36 @@ describe('GitHub API client', () => {
 			code: 'tracker_error',
 			message: expect.stringContaining('GH_TOKEN'),
 		})
+	})
+})
+
+describe('the fixture file tracker (CANVAS_TRACKER_FIXTURE, ADR 0023)', () => {
+	function fixtureFile(issues = storageMapIssues()) {
+		const path = join(mkdtempSync(join(tmpdir(), 'tracker-fixture-')), 'map.json')
+		const write = (next: typeof issues) =>
+			writeFileSync(path, JSON.stringify({ repo: 'acme/plan', issues: next }))
+		write(issues)
+		return { path, write }
+	}
+
+	it('serves the map from the file in its repository, re-read on every sync', async () => {
+		const { path, write } = fixtureFile()
+		const tracker = defaultTrackerOptions({ CANVAS_TRACKER_FIXTURE: path })
+		const target = await resolveMapTarget(tracker, '#1', undefined)
+		expect(target).toEqual({ repo, number: 1 })
+		expect((await syncMap(tracker, target)).derived.frontier).toEqual(['3', '8', '11'])
+
+		// Someone claims #3 in the file: the next sync shows it.
+		write(storageMapIssues().map((i) => (i.number === 3 ? { ...i, assignees: ['claude'] } : i)))
+		const next = await syncMap(tracker, target)
+		expect(next.derived.graph.nodes.find((n) => n.id === '3')?.status).toBe('in_progress')
+		expect(next.derived.frontier).toEqual(['8', '11'])
+	})
+
+	it('reports an unreadable fixture as a tracker error', async () => {
+		const tracker = defaultTrackerOptions({ CANVAS_TRACKER_FIXTURE: '/nonexistent/map.json' })
+		await expect(syncMap(tracker, { repo, number: 1 })).rejects.toThrow(
+			/could not read the tracker fixture/,
+		)
 	})
 })

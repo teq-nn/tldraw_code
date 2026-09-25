@@ -14,9 +14,9 @@ import {
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { questionCardId } from '../src/ask/showQuestion'
 import { createCommandHandlers } from '../src/bridge/commandHandlers'
-import { choicePinId } from '../src/comparison/comparisonFrames'
+import { choicePinId, hideCollapsedContent } from '../src/comparison/comparisonFrames'
 import { REJECTED_OPACITY } from '../src/comparison/settleComparison'
-import { diagramCaptionId, diagramFrameId } from '../src/diagram/renderDiagrams'
+import { diagramCaptionId, diagramFrameId, diagramNodeId } from '../src/diagram/renderDiagrams'
 import { nodeShapeId } from '../src/graph/renderGraph'
 import {
 	PROTOTYPE_HEADER_HEIGHT,
@@ -355,5 +355,42 @@ describe('comparison.settle', () => {
 			fromShapeId: nodeShapeId('ingest'),
 			toShapeId: diagramFrame(1).id,
 		})
+	})
+})
+
+describe('on the live canvas', () => {
+	it('hides the content of a collapsed diagram frame, all but the reason', async () => {
+		editor.dispose()
+		editor = createTestEditor({ getShapeVisibility: hideCollapsedContent })
+		handlers = createCommandHandlers(editor)
+		await drawGraph(['ingest'])
+		await compareDiagrams()
+		await settle()
+
+		expect(editor.isShapeHidden(diagramNodeId('comparison', 'ingest', 0, 'api'))).toBe(true)
+		expect(editor.isShapeHidden(diagramCaptionId('comparison', 'ingest', 0))).toBe(false)
+		expect(editor.isShapeHidden(diagramNodeId('comparison', 'ingest', 1, 'api'))).toBe(false)
+
+		await settle({ chosen: 'Direct', rejected: [{ label: 'Queued', reason: 'One more service' }] })
+		expect(editor.isShapeHidden(diagramNodeId('comparison', 'ingest', 0, 'api'))).toBe(false)
+	})
+
+	it('moves a growing graph left instead of into the comparison row to its right', async () => {
+		await drawGraph(['a'])
+		await compareDiagrams()
+		const row = bounds(diagramFrameId('comparison', 'ingest', 0))
+		// The graph grows: a chain of blockers in front of `a` pushes it to the right.
+		await handlers['graph.render']({
+			nodes: ['p', 'q', 'r', 'a'].map((id) => ({ id, title: id, status: 'open' as const })),
+			edges: [
+				{ from: 'p', to: 'q' },
+				{ from: 'q', to: 'r' },
+				{ from: 'r', to: 'a' },
+			],
+			frontier: ['p'],
+		})
+		const graph = editor.getShapesPageBounds(['p', 'q', 'r', 'a'].map((id) => nodeShapeId(id)))
+		expect(graph?.maxX).toBeLessThan(row.minX)
+		expect(bounds(diagramFrameId('comparison', 'ingest', 0))).toEqual(row)
 	})
 })

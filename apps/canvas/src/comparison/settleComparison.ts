@@ -33,6 +33,7 @@ type SettleResult = CanvasCommandResult<'comparison.settle'>
 /** Opacity of a rejected alternative: still legible, clearly not the choice. */
 export const REJECTED_OPACITY = 0.5
 const PIN_LABEL = 'chosen'
+const PIN_BEND = -120
 
 /**
  * Settle comparison `id` after the user chose (ADR 0021). The chosen
@@ -213,7 +214,8 @@ function pinChoice(
 			labelColor: 'green',
 			size: 'm',
 			dash: 'dashed',
-			bend: 0,
+			// Arc over the graph rather than straight through the nodes between the node and the row.
+			bend: PIN_BEND,
 			arrowheadStart: 'dot',
 			arrowheadEnd: 'arrow',
 			font: 'sans',

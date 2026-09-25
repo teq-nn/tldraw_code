@@ -114,3 +114,15 @@ export function choicePinMeta(meta: unknown): ChoicePinMeta | undefined {
 export function unpinComparison(editor: Editor, id: string): void {
 	if (editor.getShape(choicePinId(id))) editor.deleteShapes([choicePinId(id)])
 }
+
+/**
+ * `getShapeVisibility` of the editor: the content of a collapsed (rejected)
+ * diagram frame is hidden, all but its caption line with the reason, so
+ * arrows do not stick out of the collapsed frame. The shapes stay in the
+ * store; expanding the frame shows them again (ADR 0021).
+ */
+export function hideCollapsedContent(shape: TLShape, editor: Editor): 'hidden' | 'inherit' {
+	const parent = editor.getShape(shape.parentId as TLShapeId)
+	if (parent?.type !== 'frame' || choiceOf(parent).choice !== 'rejected') return 'inherit'
+	return diagramMeta(shape.meta)?.diagramPart === 'caption' ? 'inherit' : 'hidden'
+}

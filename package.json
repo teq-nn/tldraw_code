@@ -10,6 +10,7 @@
 		"dev": "pnpm --filter @tldraw-code/canvas dev",
 		"mcp": "tsx apps/mcp-server/src/main.ts",
 		"smoke": "tsx scripts/smoke.ts",
+		"demo:wayfinder": "tsx scripts/wayfinder-demo.ts",
 		"build": "pnpm -r build",
 		"typecheck": "tsc -p tsconfig.json && pnpm -r typecheck",
 		"lint": "biome check .",
