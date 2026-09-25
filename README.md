@@ -12,6 +12,7 @@ Canvas-first grilling and wayfinder sessions with Claude Code: Claude draws deci
 | `.agents/skills/canvas-grilling` | The canvas grilling skill (linked from `.claude/skills`) ([ADR 0011](docs/adr/0011-canvas-grilling-skill.md)) |
 | `.agents/skills/canvas-wayfinder` | The canvas wayfinder skill (linked from `.claude/skills`) ([ADR 0022](docs/adr/0022-canvas-wayfinder-skill.md)) |
 | `scripts/wayfinder-demo.ts` | A scripted wayfinder session against a fixture tracker (`pnpm demo:wayfinder`, [ADR 0023](docs/adr/0023-fixture-tracker-and-scripted-wayfinder-demo.md)) |
+| `apps/canvas/bench` | The layout benchmark: a scripted scene scored per layout flavour (`pnpm bench:layout`) |
 
 ```
 Claude Code --stdio/MCP--> apps/mcp-server --WebSocket ws://127.0.0.1:4477--> apps/canvas (browser tab)
@@ -105,5 +106,7 @@ pnpm lint        # biome (lint + format check); `pnpm format` fixes
 pnpm build       # production build of the canvas
 pnpm check       # all of the above
 ```
+
+**Layout benchmark**: `pnpm bench:layout [flavour…]` replays one representative session (graph, user notes and drags, a question card, a graph update, a diagram and a prototype comparison, settling, an agent note; `apps/canvas/bench/scene.ts`) against the canvas's real command handlers in a headless editor, once per layout flavour, and prints a scorecard per step and aggregated: graph quality, stability, ownership (user shapes moved, anchors kept), overlaps with the pairs named, attention and footprint ([research §10–13](docs/research/canvas-layout.md)). Each flavour's final canvas goes to `apps/canvas/public/bench/<flavour>.tldr`; with `pnpm dev` running, open it at `http://127.0.0.1:5173/?snapshot=bench/<flavour>.tldr` (not persisted, not connected to Claude). Layout flavours are registered in `apps/canvas/src/bridge/layoutFlavours.ts`; the live canvas runs one with `?layout=<flavour>` (the baseline, today's layout, by default).
 
 Tests exercise the MCP tool interface against a fake canvas that speaks the bridge protocol over a real WebSocket (`apps/mcp-server/test/fakeCanvas.ts`), per the testing seam proposed in the spec. Blocking tools are tested on a manual clock and event-driven waits (`apps/mcp-server/test/timing.ts`), never on sleeps ([ADR 0019](docs/adr/0019-ask-timing-early-answers-and-a-manual-clock.md)). New canvas tools add a command to `packages/protocol/src/commands.ts`, a handler in `apps/canvas/src/bridge/commandHandlers.ts` (the compiler enforces it) and a tool in `apps/mcp-server/src/server.ts`.

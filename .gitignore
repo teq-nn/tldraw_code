@@ -4,3 +4,6 @@ dist/
 .vite/
 coverage/
 .DS_Store
+
+# Layout benchmark snapshots (pnpm bench:layout)
+apps/canvas/public/bench/

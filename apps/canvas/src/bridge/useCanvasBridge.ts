@@ -5,7 +5,7 @@ import { answeredQuestionCards, watchQuestionCards } from '../ask/watchQuestionC
 import { ActivityTracker } from '../perception/activity'
 import { pushActivityWhenQuiet } from '../perception/activityPush'
 import { BridgeClient, type BridgeStatus } from './BridgeClient'
-import { createCommandHandlers } from './commandHandlers'
+import { BASELINE_FLAVOUR, type LayoutFlavour } from './layoutFlavours'
 
 export const BRIDGE_URL: string =
 	import.meta.env.VITE_CANVAS_BRIDGE_URL ?? `ws://127.0.0.1:${DEFAULT_BRIDGE_PORT}`
@@ -16,8 +16,14 @@ export interface CanvasBridgeState {
 	working: boolean
 }
 
-/** Connect the given editor to the MCP server's bridge for as long as the component is mounted. */
-export function useCanvasBridge(editor: Editor | undefined): CanvasBridgeState {
+/**
+ * Connect the given editor to the MCP server's bridge for as long as the
+ * component is mounted, running the commands with the layout flavour's handlers.
+ */
+export function useCanvasBridge(
+	editor: Editor | undefined,
+	flavour: LayoutFlavour = BASELINE_FLAVOUR,
+): CanvasBridgeState {
 	const [status, setStatus] = useState<BridgeStatus>('disconnected')
 	const [working, setWorking] = useState(false)
 
@@ -26,7 +32,7 @@ export function useCanvasBridge(editor: Editor | undefined): CanvasBridgeState {
 		const activity = new ActivityTracker(editor)
 		const client = new BridgeClient({
 			url: BRIDGE_URL,
-			handlers: createCommandHandlers(editor, { activity }),
+			handlers: flavour.createHandlers(editor, { activity }),
 			onStatusChange: (next) => {
 				setStatus(next)
 				// The server re-sends the flag when it hears our hello; until then, nothing is known.
@@ -55,7 +61,7 @@ export function useCanvasBridge(editor: Editor | undefined): CanvasBridgeState {
 			client.stop()
 			activity.dispose()
 		}
-	}, [editor])
+	}, [editor, flavour])
 
 	return { status, working }
 }

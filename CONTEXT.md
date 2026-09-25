@@ -188,6 +188,16 @@ _Avoid_: typing indicator, spinner
 A short reply Claude puts on the canvas with `render_note`, next to the shape it answers (`replyTo`) or right of the content. A tldraw note that looks unlike the user's sticky (violet, sans-serif, labelled "Claude"), with role `agent_note`, listed under "Your shapes". Never user activity and never an `&agent` invocation, even if its text contains the tag; keyed by an optional id, rendering again updates it in place (ADR 0026).
 _Avoid_: reply sticky, bot note
 
+### Layout
+
+**Layout flavour**:
+One coherent way for the canvas to place what Claude draws (how graphs re-layout, where new content goes), registered in `apps/canvas/src/bridge/layoutFlavours.ts`. The baseline is today's layout; the canvas runs another with `?layout=<name>` (docs/research/canvas-layout.md §12).
+_Avoid_: layout mode, strategy, style (the house style is dagre's settings)
+
+**Layout benchmark**:
+`pnpm bench:layout`: one scripted session replayed headless for every layout flavour and scored on graph quality, stability, ownership, overlap, attention and footprint, with each flavour's final canvas saved as a snapshot.
+_Avoid_: layout test, eval
+
 ### Prototypes
 
 **Prototype**:
