@@ -254,7 +254,8 @@ export function createMcpServer(bridge: CanvasBridge, options: McpServerOptions 
 				'may answer freely with a sticky note next to the card. Blocks until the user answers ' +
 				`(up to ${formatDuration(askTimings.timeoutMs)}); then returns "no answer yet" and the card ` +
 				'stays open: call ask again with the same arguments to keep waiting. Only one question at a time; ' +
-				'a different question replaces the open card.',
+				'a different question replaces the open card. This is the default form of a question, design ' +
+				'questions included; use compare when the user has to see the alternatives to choose.',
 			inputSchema: QuestionShape,
 		},
 		async (args, extra) =>
@@ -343,7 +344,9 @@ export function createMcpServer(bridge: CanvasBridge, options: McpServerOptions 
 			description:
 				'Show 2 or 3 alternatives side by side and ask the user which to take: a question card is ' +
 				'attached below them (via ask), with one button per alternative, your recommendation marked, and "' +
-				`${KEEP_GRILLING_LABEL}". Use it instead of describing alternatives in words. Items are all ` +
+				`${KEEP_GRILLING_LABEL}". Use it when the user has to see the alternatives to choose (structures ` +
+				'or flows whose difference is their shape, UIs whose look or feel decides) or asks to see them; ' +
+				'when a few words per option tell them apart, use ask. Items are all ' +
 				'diagrams or all prototypes. For a structure or flow, each item is {label, caption?, spec} with ' +
 				'spec like render_diagram: each gets its own frame, all frames share one layout, and what differs ' +
 				'is highlighted in orange; give the same element the same node id in every alternative (nodes are ' +

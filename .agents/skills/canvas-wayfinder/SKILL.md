@@ -1,6 +1,6 @@
 ---
 name: canvas-wayfinder
-description: Work through a wayfinder map on the shared tldraw canvas instead of the terminal, asking each decision in the form that needs the least reading (question card, diagram comparison or prototype comparison), with the tracker's tickets as the record. Use when the user wants to work, continue or resume a wayfinder map on the canvas, or asks for a wayfinder session while the `sync_wayfinder_map` and `compare` canvas tools are connected.
+description: Work through a wayfinder map on the shared tldraw canvas instead of the terminal, asking each decision in the form that needs the least reading (a question card by default, a diagram or prototype comparison when seeing the alternatives decides), with the tracker's tickets as the record. Use when the user wants to work, continue or resume a wayfinder map on the canvas, or asks for a wayfinder session while the `sync_wayfinder_map` and `compare` canvas tools are connected.
 ---
 
 Resolve a wayfinder map's decision tickets with the user on the tldraw canvas: the `wayfinder` skill's "Work through the map" mode, moved onto the canvas. The canvas shows the map as a frontier graph; the user reads, clicks and sketches there; the terminal stays quiet.
@@ -17,18 +17,19 @@ The `wayfinder` skill defines the map, tickets, claims, the frontier, fog of war
 
 ## The question form
 
-Pick the form that makes the user read least, per question:
+A question card is the default; draw only when seeing decides. Pick the form per question:
 
 | The decision is between | Form |
 | --- | --- |
-| Named options: a fact-like choice, a policy, a yes or no | `ask` |
-| 2 or 3 structures or flows: architecture, data flow, schema, states, a sequence | `compare` with diagram items (`spec`) |
-| 2 or 3 UIs: a layout, a control, a flow of screens | `compare` with prototype items (`html`) |
+| Options a few words each tell apart: a fact-like choice, a policy, a yes or no, most design choices | `ask` |
+| 2 or 3 structures or flows whose difference is their shape: architecture, data flow, schema, states, a sequence | `compare` with diagram items (`spec`) |
+| 2 or 3 UIs whose look or feel decides: a layout, a control, a flow of screens | `compare` with prototype items (`html`) |
 
+- **The user asks to see it** (a diagram, a prototype, "show me", in an answer or a sticky note): show it in the form they asked for.
+- **When unsure, ask.** A sticky note can still ask you to show it.
 - **Diagram items**: one spec per alternative, the same node id for the same element in every alternative, so the canvas lays them out alike and highlights only what differs.
 - **Prototype items**: one self-contained HTML document each. Read the app's CSS and components first and inline its variables, classes and markup, so it looks like the real thing; the sandbox loads nothing from the network.
 - **Both**: a label of a few words and a one-sentence caption on what sets it apart; the comparison id is the ticket's node id (its issue number, e.g. `"14"`), so the choice gets pinned to that node.
-- When options differ in shape, show them; when they differ only in name, ask.
 
 ## The session loop
 
