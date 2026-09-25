@@ -6,6 +6,7 @@ import {
 } from '@tldraw-code/protocol'
 import {
 	type Editor,
+	kickoutOccludedShapes,
 	renderPlaintextFromRichText,
 	type TLArrowBinding,
 	type TLFrameShape,
@@ -373,6 +374,46 @@ describe('on the live canvas', () => {
 
 		await settle({ chosen: 'Direct', rejected: [{ label: 'Queued', reason: 'One more service' }] })
 		expect(editor.isShapeHidden(diagramNodeId('comparison', 'ingest', 0, 'api'))).toBe(false)
+	})
+
+	it('keeps the content of a collapsed diagram frame inside, and hidden, when the user moves it', async () => {
+		editor.dispose()
+		editor = createTestEditor({ getShapeVisibility: hideCollapsedContent })
+		handlers = createCommandHandlers(editor)
+		await drawGraph(['ingest'])
+		await compareDiagrams()
+		await settle()
+		const frameId = diagramFrameId('comparison', 'ingest', 0)
+		const api = diagramNodeId('comparison', 'ingest', 0, 'api')
+
+		// What the select tool does when a drag ends: move the frame, then kick
+		// out children that no longer overlap it, which is all of them below the title bar.
+		const frame = editor.getShape<TLFrameShape>(frameId)
+		editor.updateShape<TLFrameShape>({ id: frameId, type: 'frame', x: (frame?.x ?? 0) + 40 })
+		kickoutOccludedShapes(editor, [frameId])
+
+		expect(editor.getShape(api)?.parentId).toBe(frameId)
+		expect(editor.isShapeHidden(api)).toBe(true)
+
+		// Expanded again, the content is where it was in the frame.
+		await settle({ chosen: 'Direct', rejected: [{ label: 'Queued', reason: 'One more service' }] })
+		expect(editor.isShapeHidden(api)).toBe(false)
+	})
+
+	it('does not take a shape dropped on a collapsed diagram frame in, where it would vanish', async () => {
+		editor.dispose()
+		editor = createTestEditor({ getShapeVisibility: hideCollapsedContent })
+		handlers = createCommandHandlers(editor)
+		await drawGraph(['ingest'])
+		await compareDiagrams()
+		await settle()
+		const frame = editor.getShape<TLFrameShape>(diagramFrameId('comparison', 'ingest', 0))
+		if (!frame) throw new Error('no frame')
+
+		expect(editor.getShapeUtil(frame).canReceiveNewChildrenOfType(frame, 'note')).toBe(false)
+		const chosen = editor.getShape<TLFrameShape>(diagramFrameId('comparison', 'ingest', 1))
+		if (!chosen) throw new Error('no frame')
+		expect(editor.getShapeUtil(chosen).canReceiveNewChildrenOfType(chosen, 'note')).toBe(true)
 	})
 
 	it('moves a growing graph left instead of into the comparison row to its right', async () => {

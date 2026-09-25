@@ -1,16 +1,18 @@
 import { useMemo, useState } from 'react'
-import { type Editor, FrameShapeUtil, type TLComponents, Tldraw } from 'tldraw'
+import { type Editor, type TLComponents, Tldraw } from 'tldraw'
 import { QuestionCardShapeUtil } from './ask/QuestionCardShapeUtil'
 import { useCanvasBridge } from './bridge/useCanvasBridge'
+import { CanvasFrameShapeUtil } from './comparison/CanvasFrameShapeUtil'
 import { hideCollapsedContent } from './comparison/comparisonFrames'
 import { BridgeStatusPill } from './components/BridgeStatusPill'
 import { PrototypeShapeUtil } from './prototype/PrototypeShapeUtil'
 
-// Frames show their colour, so a settled comparison's chosen alternative stands out in green (ADR 0021).
+// Frames show their colour, so a settled comparison's chosen alternative stands out in green (ADR 0021),
+// and a rejected one keeps its hidden diagram when the user moves it (ADR 0027).
 const shapeUtils = [
 	QuestionCardShapeUtil,
 	PrototypeShapeUtil,
-	FrameShapeUtil.configure({ showColors: true }),
+	CanvasFrameShapeUtil.configure({ showColors: true }),
 ]
 
 /**

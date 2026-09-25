@@ -8,14 +8,16 @@ import {
 	tipTapDefaultExtensions,
 } from 'tldraw'
 import { QuestionCardShapeUtil } from '../src/ask/QuestionCardShapeUtil'
+import { CanvasFrameShapeUtil } from '../src/comparison/CanvasFrameShapeUtil'
 import { PrototypeShapeUtil } from '../src/prototype/PrototypeShapeUtil'
 
-/** A headless tldraw editor with the default shapes and ours, for tests running under jsdom. */
+/** A headless tldraw editor with the default shapes and ours (the app's frames), for tests running under jsdom. */
 export function createTestEditor(
 	options: Pick<ConstructorParameters<typeof Editor>[0], 'getShapeVisibility'> = {},
 ): Editor {
 	const shapeUtils: TLAnyShapeUtilConstructor[] = [
-		...defaultShapeUtils,
+		...defaultShapeUtils.filter((util) => util.type !== 'frame'),
+		CanvasFrameShapeUtil,
 		QuestionCardShapeUtil,
 		PrototypeShapeUtil,
 	]
