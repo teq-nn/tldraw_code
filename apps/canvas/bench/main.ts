@@ -1,24 +1,24 @@
 /**
  * The layout benchmark (issue #25): replays one representative session
  * against the canvas's real command handlers in a headless editor, once per
- * layout flavour, prints each flavour's scorecard and writes its final canvas
- * as a snapshot to open on the canvas.
+ * run, prints each run's scorecard and writes its final canvas as a snapshot
+ * to open on the canvas.
  *
- *   pnpm bench:layout              # every flavour
- *   pnpm bench:layout baseline     # only the named ones
+ *   pnpm bench:layout                # every run
+ *   pnpm bench:layout user-owned     # only the named ones
  *
  * It also writes every run's canvas after every step for the layout demo
  * (`?demo` on the canvas), which walks through the runs side by side.
  *
- * Flavours are registered in `src/bridge/layoutFlavours.ts`. Next to them
- * runs `user-owned+tidy`: F2 on the scene with a tidy after step 7 (#29).
+ * The runs are listed in {@link RUNS}: the scene as it is, and the scene with
+ * a tidy after step 7 (#29).
  */
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { JSDOM } from 'jsdom'
 
-/** Where snapshots go: the canvas serves this folder, so `?snapshot=bench/<flavour>.tldr` opens one. */
+/** Where snapshots go: the canvas serves this folder, so `?snapshot=bench/<run>.tldr` opens one. */
 const SNAPSHOT_DIR = join(dirname(fileURLToPath(import.meta.url)), '../public/bench')
 const CANVAS_URL = 'http://127.0.0.1:5173'
 
@@ -36,33 +36,29 @@ for (const key of Object.getOwnPropertyNames(dom.window)) {
 }
 
 // Imported after the DOM exists: tldraw looks for it when it loads.
-const { LAYOUT_FLAVOURS } = await import('../src/bridge/layoutFlavours')
 const { runScene } = await import('./runScene')
 const { SCENE, SCENE_WITH_TIDY } = await import('./scene')
 const { formatComparison, formatScorecard, scoreRun } = await import('./scorecard')
 const { writeLayoutDemo } = await import('./demo')
 
-/** Every run: each flavour on the scene, and F2 on the scene with a tidy (#29). */
+const USER_OWNED =
+	'Placed nodes never move, dragged ones included; new nodes go into free space beside their blockers; removed ones leave their gap (ADR 0032).'
+
+/** Every run: the scene, and the scene with a tidy (#29). */
 const RUNS = [
-	...LAYOUT_FLAVOURS.map((flavour) => ({
-		name: flavour.name,
-		flavour,
-		scene: SCENE,
-		summary: flavour.summary,
-	})),
-	...LAYOUT_FLAVOURS.filter((flavour) => flavour.name === 'user-owned').map((flavour) => ({
-		name: `${flavour.name}+tidy`,
-		flavour,
+	{ name: 'user-owned', scene: SCENE, summary: USER_OWNED },
+	{
+		name: 'user-owned+tidy',
 		scene: SCENE_WITH_TIDY,
-		summary: `${flavour.summary} With a tidy after step 7.`,
-	})),
+		summary: `${USER_OWNED} With a tidy after step 7.`,
+	},
 ]
 
 const wanted = process.argv.slice(2)
 const unknown = wanted.filter((name) => !RUNS.some((run) => run.name === name))
 if (unknown.length > 0) {
 	const known = RUNS.map((run) => run.name).join(', ')
-	console.error(`Unknown layout flavour: ${unknown.join(', ')}. Known: ${known}.`)
+	console.error(`Unknown run: ${unknown.join(', ')}. Known: ${known}.`)
 	process.exit(1)
 }
 const runs = RUNS.filter((run) => wanted.length === 0 || wanted.includes(run.name))
@@ -70,14 +66,14 @@ const runs = RUNS.filter((run) => wanted.length === 0 || wanted.includes(run.nam
 mkdirSync(SNAPSHOT_DIR, { recursive: true })
 const cards = []
 const demoRuns = []
-for (const { name, flavour, scene, summary } of runs) {
-	const run = await runScene(flavour, scene, name)
+for (const { name, scene, summary } of runs) {
+	const run = await runScene(scene, name)
 	const card = scoreRun(run, scene)
 	cards.push(card)
 	demoRuns.push({ run, scene, card, summary })
 	const file = join(SNAPSHOT_DIR, `${name}.tldr`)
 	writeFileSync(file, run.snapshot)
-	console.log(`\n=== Layout flavour "${name}": ${summary}\n`)
+	console.log(`\n=== Run "${name}": ${summary}\n`)
 	console.log(formatScorecard(card))
 	console.log(`\nFinal canvas: ${relative(process.cwd(), file)}`)
 	// A "+" in a query string reads as a space.
@@ -86,7 +82,7 @@ for (const { name, flavour, scene, summary } of runs) {
 	)
 }
 if (cards.length > 1) {
-	console.log('\n=== All flavours (aggregates)\n')
+	console.log('\n=== All runs (aggregates)\n')
 	console.log(formatComparison(cards))
 }
 // Overwritten in place, not deleted first: a running dev server stops serving a public folder that is removed and recreated.

@@ -12,12 +12,14 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { runScene } from '../bench/runScene'
 import { SCENE, SCENE_WITH_TIDY } from '../bench/scene'
 import { scoreRun } from '../bench/scorecard'
-import { BASELINE_FLAVOUR, findLayoutFlavour } from '../src/bridge/layoutFlavours'
+import { createCommandHandlers } from '../src/bridge/commandHandlers'
+import { layoutGraph } from '../src/graph/layout'
 import { nodeShapeId } from '../src/graph/renderGraph'
 import { ANCHOR_REACH } from '../src/perception/readCanvas'
 import { createTestEditor } from './createTestEditor'
 
-// Layout flavour F2 "user-owned space" (issue #28): once placed, a node is never moved.
+// The user-owned layout (ADR 0032, issues #28, #29, #31): once placed, a node is never moved,
+// until the user asks for a tidy.
 
 let editor: Editor
 
@@ -43,16 +45,12 @@ const graph: FrontierGraph = {
 	],
 }
 
-function userOwned() {
-	const flavour = findLayoutFlavour('user-owned')
-	if (!flavour) throw new Error('the user-owned flavour is not registered')
-	return flavour
-}
-
-function render(g: FrontierGraph, flavour = userOwned(), options: { tidy?: boolean } = {}) {
-	return flavour
-		.createHandlers(editor)
-		['graph.render']({ ...g, frontier: computeFrontier(g), ...options })
+function render(g: FrontierGraph, options: { tidy?: boolean } = {}) {
+	return createCommandHandlers(editor)['graph.render']({
+		...g,
+		frontier: computeFrontier(g),
+		...options,
+	})
 }
 
 /** Drag a node as the user would. */
@@ -73,20 +71,11 @@ function positionOf(nodeId: string) {
 	return { x, y }
 }
 
-describe('the user-owned layout flavour', () => {
-	it('is registered next to the baseline, which stays the default', () => {
-		expect(userOwned().name).toBe('user-owned')
-		expect(findLayoutFlavour('baseline')).toBe(BASELINE_FLAVOUR)
-	})
-
-	it('lays a new graph out as the baseline does', async () => {
+describe('the user-owned layout', () => {
+	it('lays a new graph out whole, in the house style', async () => {
 		await render(graph)
-		const f2 = graph.nodes.map((node) => positionOf(node.id))
 
-		editor.deleteShapes([...editor.getCurrentPageShapeIds()])
-		await render(graph, BASELINE_FLAVOUR)
-
-		expect(graph.nodes.map((node) => positionOf(node.id))).toEqual(f2)
+		expect(relativePositions(graph)).toEqual(dagrePositions(graph))
 	})
 
 	it('keeps every node where it is on a re-render, including one the user dragged', async () => {
@@ -197,19 +186,18 @@ describe('the user-owned layout flavour', () => {
 	})
 })
 
-describe('a tidy under the user-owned flavour', () => {
-	it('lays the whole graph out afresh where it is, as the baseline would', async () => {
-		await render(graph, BASELINE_FLAVOUR)
-		await render(withNode('e', 'Audit log', 'c'), BASELINE_FLAVOUR)
-		const baseline = ['a', 'b', 'c', 'd', 'e'].map(positionOf)
-		editor.deleteShapes([...editor.getCurrentPageShapeIds()])
-
+describe('a tidy', () => {
+	it('lays the whole graph out afresh where it is, in the house style', async () => {
 		await render(graph)
+		const origin = originOf(graph)
 		drag('b', 30, 400)
-		await render(withNode('e', 'Audit log', 'c'))
-		await render(withNode('e', 'Audit log', 'c'), userOwned(), { tidy: true })
+		const grown = withNode('e', 'Audit log', 'c')
+		await render(grown)
 
-		expect(['a', 'b', 'c', 'd', 'e'].map(positionOf)).toEqual(baseline)
+		await render(grown, { tidy: true })
+
+		expect(relativePositions(grown)).toEqual(dagrePositions(grown))
+		expect(originOf(grown)).toEqual(origin)
 	})
 
 	it('moves the user notes anchored to a node with it, so they keep their anchor', async () => {
@@ -222,7 +210,7 @@ describe('a tidy under the user-owned flavour', () => {
 		const anchorsBefore = await anchorsOf([on, beside, far])
 		const farBefore = editor.getShapePageBounds(far)
 
-		await render(graph, userOwned(), { tidy: true })
+		await render(graph, { tidy: true })
 
 		const moved = { x: boundsOf('b').x - b.x, y: boundsOf('b').y - b.y }
 		expect(moved).not.toEqual({ x: 0, y: 0 })
@@ -237,25 +225,6 @@ describe('a tidy under the user-owned flavour', () => {
 		expect(await anchorsOf([on, beside, far])).toEqual(anchorsBefore)
 		expect(anchorsBefore.slice(0, 2)).toEqual([nodeShapeId('b'), nodeShapeId('b')])
 	})
-
-	it.each(['baseline', 'anchored'])(
-		'is a plain render under the %s flavour, which lays the whole graph out every time',
-		async (name) => {
-			const flavour = findLayoutFlavour(name)
-			if (!flavour) throw new Error(`the ${name} flavour is not registered`)
-			await render(graph, flavour)
-			const note = stickNote('note-on-b', boundsOf('b').x + 40, boundsOf('b').y + 20)
-			await render(withNode('e', 'Audit log', 'c'), flavour)
-			const plain = [...['a', 'b', 'c', 'd', 'e'].map(positionOf), editor.getShapePageBounds(note)]
-
-			await render(withNode('e', 'Audit log', 'c'), flavour, { tidy: true })
-
-			expect([
-				...['a', 'b', 'c', 'd', 'e'].map(positionOf),
-				editor.getShapePageBounds(note),
-			]).toEqual(plain)
-		},
-	)
 })
 
 function stickNote(name: string, x: number, y: number): TLShapeId {
@@ -266,17 +235,15 @@ function stickNote(name: string, x: number, y: number): TLShapeId {
 
 /** The shape each of `ids` is anchored to, as `read_canvas` reports it (ADR 0008). */
 async function anchorsOf(ids: TLShapeId[]) {
-	const read = await userOwned()
-		.createHandlers(editor, {
-			capture: async () => {
-				throw new Error('no screenshots in this test')
-			},
-		})
-		['canvas.read']({ region: 'all', screenshot: false })
+	const read = await createCommandHandlers(editor, {
+		capture: async () => {
+			throw new Error('no screenshots in this test')
+		},
+	})['canvas.read']({ region: 'all', screenshot: false })
 	return ids.map((id) => read.shapes.find((shape) => shape.id === id)?.anchor?.shapeId ?? null)
 }
 
-describe('question cards under the user-owned flavour', () => {
+describe('question cards in user-owned space', () => {
 	const ask = {
 		askId: 'ask-c',
 		question: 'Which API?',
@@ -286,7 +253,7 @@ describe('question cards under the user-owned flavour', () => {
 
 	it('puts a new card clear of the user notes, beyond anchor reach', async () => {
 		await render(graph)
-		// Where the baseline puts the card: below the graph, centred.
+		// Where a card goes when nothing is in the way: below the graph, centred.
 		const below = Box.Common(graph.nodes.map((node) => boundsOf(node.id)))
 		const note = createShapeId('user-note')
 		editor.createShape<TLNoteShape>({
@@ -296,7 +263,7 @@ describe('question cards under the user-owned flavour', () => {
 			y: below.maxY + 80,
 		})
 
-		const { shapeId } = await userOwned().createHandlers(editor)['ask.show'](ask)
+		const { shapeId } = await createCommandHandlers(editor)['ask.show'](ask)
 
 		const card = editor.getShapePageBounds(shapeId as TLShapeId)
 		const noteBounds = editor.getShapePageBounds(note)
@@ -306,7 +273,7 @@ describe('question cards under the user-owned flavour', () => {
 
 	it('leaves a card that is already open where it is', async () => {
 		await render(graph)
-		const handlers = userOwned().createHandlers(editor)
+		const handlers = createCommandHandlers(editor)
 		const { shapeId } = await handlers['ask.show'](ask)
 		const card = editor.getShape(shapeId as TLShapeId)
 		if (!card) throw new Error('no card')
@@ -318,6 +285,31 @@ describe('question cards under the user-owned flavour', () => {
 		expect(editor.getShapePageBounds(card.id)).toEqual(before)
 	})
 })
+
+/** Every node's position relative to the graph's top-left corner. */
+function relativePositions(g: FrontierGraph) {
+	const origin = originOf(g)
+	return new Map(
+		g.nodes.map((node) => {
+			const { x, y } = positionOf(node.id)
+			return [node.id, { x: x - origin.x, y: y - origin.y }]
+		}),
+	)
+}
+
+/** Where dagre puts the nodes, at the sizes they have on the canvas. */
+function dagrePositions(g: FrontierGraph) {
+	const sized = g.nodes.map((node) => {
+		const { w, h } = boundsOf(node.id)
+		return { id: node.id, w, h }
+	})
+	return layoutGraph(sized, g.edges).positions
+}
+
+function originOf(g: FrontierGraph) {
+	const { x, y } = Box.Common(g.nodes.map((node) => boundsOf(node.id)))
+	return { x, y }
+}
 
 function withNode(id: string, title: string, blocker: string | undefined): FrontierGraph {
 	return {
@@ -339,9 +331,9 @@ function expectClearOfEverything(nodeId: string) {
 	expect(hits.map((shape) => shape.id)).toEqual([])
 }
 
-describe('the user-owned flavour on the layout benchmark', () => {
+describe('the user-owned layout on the layout benchmark', () => {
 	it('moves no persisting node and no user shape, keeps every anchor and overlaps nothing', async () => {
-		const run = await runScene(userOwned(), SCENE)
+		const run = await runScene(SCENE)
 		const card = scoreRun(run, SCENE)
 
 		const moved = run.steps.slice(1).flatMap((step, index) => {
@@ -361,10 +353,10 @@ describe('the user-owned flavour on the layout benchmark', () => {
 	})
 })
 
-describe('the user-owned flavour with a tidy on the layout benchmark', () => {
-	it('tidies after step 7 to no more crossings than the baseline, keeping every anchor', async () => {
-		const tidied = scoreRun(await runScene(userOwned(), SCENE_WITH_TIDY), SCENE_WITH_TIDY)
-		const baseline = scoreRun(await runScene(BASELINE_FLAVOUR, SCENE), SCENE)
+describe('a tidy on the layout benchmark', () => {
+	it('tidies after step 7 to no more crossings than the graph had, keeping every anchor', async () => {
+		const tidied = scoreRun(await runScene(SCENE_WITH_TIDY), SCENE_WITH_TIDY)
+		const untidied = scoreRun(await runScene(SCENE), SCENE)
 
 		expect(SCENE_WITH_TIDY.steps.map((step) => step.name)).toEqual([
 			...SCENE.steps.slice(0, 7).map((step) => step.name),
@@ -372,7 +364,7 @@ describe('the user-owned flavour with a tidy on the layout benchmark', () => {
 			...SCENE.steps.slice(7).map((step) => step.name),
 		])
 		const tidy = tidied.steps[7]?.graph?.crossings ?? 0
-		expect(tidy).toBeGreaterThanOrEqual(baseline.steps[6]?.graph?.crossings ?? 1)
+		expect(tidy).toBeGreaterThanOrEqual(untidied.steps[6]?.graph?.crossings ?? 1)
 		expect(tidied.steps[7]?.anchorsKept).toEqual({ kept: 4, total: 4 })
 		expect(tidied.aggregate.anchorsKept).toEqual({ kept: 4, total: 4 })
 		expect(tidied.aggregate.claudeClaudeOverlaps).toBe(0)

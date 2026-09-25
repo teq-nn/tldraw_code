@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: accepted, per-render re-layout superseded by ADR 0032
 ---
 
 # Graph layout: dagre, computed in the canvas
@@ -16,6 +16,6 @@ status: accepted
 
 ## Consequences
 
-- Every render re-runs the layout, so a node the user dragged snaps back to its laid-out place on the next `render_graph` (see ADR 0005).
+- Every render re-runs the layout, so a node the user dragged snaps back to its laid-out place on the next `render_graph` (see ADR 0005). _Superseded by ADR 0032: the layout runs for a new graph and for a tidy; a placed node keeps its place._
 - If graphs ever grow into the hundreds, or need nested groups (compound nodes), ELK is the fallback; only `layoutGraph` would change.
 - The MCP server never sees coordinates; tests of the tool interface stay independent of layout.

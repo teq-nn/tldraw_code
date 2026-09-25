@@ -5,6 +5,7 @@ import {
 	type FrontierGraph,
 } from '@tldraw-code/protocol'
 import {
+	Box,
 	createShapeId,
 	type Editor,
 	type TLArrowBinding,
@@ -45,8 +46,17 @@ function payload(g: FrontierGraph): CanvasCommandPayload<'graph.render'> {
 	return { ...g, frontier: computeFrontier(g) }
 }
 
-function render(g: FrontierGraph) {
-	return createCommandHandlers(editor)['graph.render'](payload(g))
+function render(g: FrontierGraph, options: { tidy?: boolean } = {}) {
+	return createCommandHandlers(editor)['graph.render']({ ...payload(g), ...options })
+}
+
+/** None of the nodes overlaps `shape`, a card or note Claude placed. */
+function expectClearOf(nodeIds: string[], shape: Box) {
+	const covering = nodeIds.filter((id) => {
+		const bounds = editor.getShapePageBounds(nodeShapeId(id))
+		return bounds !== undefined && Box.Collides(bounds, shape)
+	})
+	expect(covering).toEqual([])
 }
 
 function node(id: string): TLGeoShape {
@@ -199,43 +209,54 @@ describe('graph.render', () => {
 		expect({ x: node('a').x, y: node('a').y }).toEqual({ x: firstA.x, y: firstA.y })
 	})
 
-	it('restores a node the user moved to its laid-out position', async () => {
+	it('leaves a node the user moved where they put it (ADR 0032)', async () => {
 		await render(graph)
-		const laidOut = { x: node('c').x, y: node('c').y }
 		editor.updateShape({ id: nodeShapeId('c') as TLShapeId, type: 'geo', x: 9999, y: 9999 })
 
 		await render(graph)
 
-		expect({ x: node('c').x, y: node('c').y }).toEqual(laidOut)
+		expect({ x: node('c').x, y: node('c').y }).toEqual({ x: 9999, y: 9999 })
 	})
 
-	it('grows clear of the open question card below it instead of covering it (#26)', async () => {
-		await render(graph)
-		const handlers = createCommandHandlers(editor)
-		const { shapeId } = await handlers['ask.show']({
-			askId: 'schema',
-			question: 'Which schema?',
-			options: ['JSON', 'Tables'],
-			recommendation: 0,
-		})
-		const card = editor.getShapePageBounds(shapeId as TLShapeId)
-		if (!card) throw new Error('no question card')
+	it.each([
+		['a render', false],
+		['a tidy', true],
+	])(
+		'grows clear of the open question card below it instead of covering it (#26), on %s',
+		async (_, tidy) => {
+			await render(graph)
+			const handlers = createCommandHandlers(editor)
+			const { shapeId } = await handlers['ask.show']({
+				askId: 'schema',
+				question: 'Which schema?',
+				options: ['JSON', 'Tables'],
+				recommendation: 0,
+			})
+			const card = editor.getShapePageBounds(shapeId as TLShapeId)
+			if (!card) throw new Error('no question card')
 
-		// The card is still open when the graph grows downward: six more decisions share b's rank.
-		const extra = ['f', 'g', 'h', 'i', 'j', 'k']
-		await render({
-			nodes: [...graph.nodes, ...extra.map((id) => ({ id, title: id, status: 'open' as const }))],
-			edges: [...graph.edges, ...extra.map((id) => ({ from: 'a', to: id }))],
-		})
+			// The card is still open when the graph grows downward: six more decisions share b's rank.
+			const extra = ['f', 'g', 'h', 'i', 'j', 'k']
+			await render(
+				{
+					nodes: [
+						...graph.nodes,
+						...extra.map((id) => ({ id, title: id, status: 'open' as const })),
+					],
+					edges: [...graph.edges, ...extra.map((id) => ({ from: 'a', to: id }))],
+				},
+				{ tidy },
+			)
 
-		const grown = editor.getShapesPageBounds(
-			[...graph.nodes.map((n) => n.id), ...extra].map((id) => nodeShapeId(id)),
-		)
-		expect(grown?.maxY).toBeLessThan(card.minY)
-		expect(editor.getShapePageBounds(shapeId as TLShapeId)).toEqual(card)
-	})
+			expectClearOf([...graph.nodes.map((n) => n.id), ...extra], card)
+			expect(editor.getShapePageBounds(shapeId as TLShapeId)).toEqual(card)
+		},
+	)
 
-	it("grows clear of Claude's note below it too", async () => {
+	it.each([
+		['a render', false],
+		['a tidy', true],
+	])("grows clear of Claude's note below it too, on %s", async (_, tidy) => {
 		await render(graph)
 		const below = editor.getShapesPageBounds(graph.nodes.map((n) => nodeShapeId(n.id)))
 		if (!below) throw new Error('no graph')
@@ -249,15 +270,15 @@ describe('graph.render', () => {
 		if (!note) throw new Error('no agent note')
 
 		const extra = ['f', 'g', 'h', 'i', 'j', 'k']
-		await render({
-			nodes: [...graph.nodes, ...extra.map((id) => ({ id, title: id, status: 'open' as const }))],
-			edges: [...graph.edges, ...extra.map((id) => ({ from: 'a', to: id }))],
-		})
-
-		const grown = editor.getShapesPageBounds(
-			[...graph.nodes.map((n) => n.id), ...extra].map((id) => nodeShapeId(id)),
+		await render(
+			{
+				nodes: [...graph.nodes, ...extra.map((id) => ({ id, title: id, status: 'open' as const }))],
+				edges: [...graph.edges, ...extra.map((id) => ({ from: 'a', to: id }))],
+			},
+			{ tidy },
 		)
-		expect(grown?.maxY).toBeLessThan(note.minY)
+
+		expectClearOf([...graph.nodes.map((n) => n.id), ...extra], note)
 		expect(editor.getShapePageBounds(shapeId as TLShapeId)).toEqual(note)
 	})
 

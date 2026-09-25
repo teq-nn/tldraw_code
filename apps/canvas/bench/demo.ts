@@ -36,7 +36,7 @@ export function writeLayoutDemo(dir: string, runs: DemoRun[]): void {
 }
 
 function demoRunOf(dir: string, { run, scene, card, summary }: DemoRun): LayoutDemoRun {
-	const folder = run.flavour.replace(/[^a-z0-9-]+/gi, '_')
+	const folder = run.name.replace(/[^a-z0-9-]+/gi, '_')
 	mkdirSync(join(dir, folder), { recursive: true })
 	const reference = run.steps[scene.annotations.anchorsFrom - 1]
 	const steps = run.steps.map((step, index): LayoutDemoStep => {
@@ -47,7 +47,7 @@ function demoRunOf(dir: string, { run, scene, card, summary }: DemoRun): LayoutD
 		return demoStep(step, run.steps[index - 1], tracked, scene.annotations.ids, score, snapshot)
 	})
 	return {
-		name: run.flavour,
+		name: run.name,
 		summary,
 		steps,
 		totals: totalsOf(card),

@@ -13,7 +13,7 @@ export interface LayoutDemoManifest {
 }
 
 export interface LayoutDemoRun {
-	/** The run's name, e.g. `baseline` or `user-owned+tidy`. */
+	/** The run's name, e.g. `user-owned` or `user-owned+tidy`. */
 	name: string
 	summary: string
 	steps: LayoutDemoStep[]

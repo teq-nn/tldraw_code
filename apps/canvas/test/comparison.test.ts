@@ -432,11 +432,11 @@ describe('on the live canvas', () => {
 		expect(editor.getShapeUtil(chosen).canReceiveNewChildrenOfType(chosen, 'note')).toBe(true)
 	})
 
-	it('moves a growing graph left instead of into the comparison or its card slot to its right', async () => {
+	it('keeps a graph a tidy lays out afresh out of the comparison and its card slot to its right', async () => {
 		await drawGraph(['a'])
 		await compareDiagrams()
 		const row = bounds(diagramFrameId('comparison', 'ingest', 0))
-		// The graph grows: a chain of blockers in front of `a` pushes it to the right.
+		// The graph grows by a chain of blockers in front of `a`: laid out whole, it pushes `a` right.
 		await handlers['graph.render']({
 			nodes: ['p', 'q', 'r', 'a'].map((id) => ({ id, title: id, status: 'open' as const })),
 			edges: [
@@ -445,6 +445,7 @@ describe('on the live canvas', () => {
 				{ from: 'r', to: 'a' },
 			],
 			frontier: ['p'],
+			tidy: true,
 		})
 		const graph = editor.getShapesPageBounds(['p', 'q', 'r', 'a'].map((id) => nodeShapeId(id)))
 		expect(graph?.maxX).toBeLessThan(row.minX - QUESTION_CARD_SLOT)

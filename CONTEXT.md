@@ -190,12 +190,16 @@ _Avoid_: reply sticky, bot note
 
 ### Layout
 
-**Layout flavour**:
-One coherent way for the canvas to place what Claude draws (how graphs re-layout, where new content goes), registered in `apps/canvas/src/bridge/layoutFlavours.ts`. The baseline is today's layout; the canvas runs another with `?layout=<name>` (docs/research/canvas-layout.md §12).
-_Avoid_: layout mode, strategy, style (the house style is dagre's settings)
+**User-owned layout**:
+How the canvas places what Claude draws (ADR 0032): a decision node, once placed, stays where it is, wherever the user dragged it; a new node goes into free space beside its blockers, clear of the user's shapes; a removed one leaves its gap. The whole graph is laid out afresh only by a tidy.
+_Avoid_: layout flavour, layout mode, auto layout
+
+**Tidy**:
+A one-shot full re-layout of the frontier graph where it is, on the user's request (`render_graph` with `tidy: true`). Every node moves, and the user's notes anchored to a node move with it.
+_Avoid_: re-layout, auto-arrange, clean up
 
 **Layout benchmark**:
-`pnpm bench:layout`: one scripted session replayed headless for every layout flavour and scored on graph quality, stability, ownership, overlap, attention and footprint, with each flavour's final canvas saved as a snapshot.
+`pnpm bench:layout`: one scripted session replayed headless against the canvas's command handlers, as it is and with a tidy, and scored on graph quality, stability, ownership, overlap, attention and footprint, with each run's final canvas saved as a snapshot.
 _Avoid_: layout test, eval
 
 ### Prototypes

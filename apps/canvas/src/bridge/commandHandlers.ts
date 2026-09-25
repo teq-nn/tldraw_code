@@ -1,8 +1,10 @@
 import { createShapeId, type Editor, toRichText } from 'tldraw'
-import { showQuestion } from '../ask/showQuestion'
+import { bringIntoView, questionCardId, showQuestion } from '../ask/showQuestion'
 import { settleComparison } from '../comparison/settleComparison'
 import { renderDiagrams } from '../diagram/renderDiagrams'
+import { moveIntoFreeSpace, placeInFreeSpace } from '../graph/placeInFreeSpace'
 import { renderGraph } from '../graph/renderGraph'
+import { tidyGraph } from '../graph/tidyGraph'
 import { renderNote } from '../note/renderNote'
 import type { ActivityTracker } from '../perception/activity'
 import { readCanvas } from '../perception/readCanvas'
@@ -20,7 +22,13 @@ export interface CommandHandlerDeps {
 	capture?: CaptureScreenshot
 }
 
-/** Implementation of every protocol command against a live tldraw editor. */
+/**
+ * Implementation of every protocol command against a live tldraw editor. The
+ * canvas is user-owned space (ADR 0032): `graph.render` never moves a node it
+ * placed before and puts new ones in free space beside their blockers, unless
+ * the render is a tidy, and a new question card keeps clear of the user's
+ * shapes, so it takes over none of their notes' anchors (ADR 0008).
+ */
 export function createCommandHandlers(
 	editor: Editor,
 	{ activity, capture = captureScreenshot }: CommandHandlerDeps = {},
@@ -47,9 +55,20 @@ export function createCommandHandlers(
 				})
 				return { shapeId: id }
 			}),
-		'graph.render': (payload) => asClaude(() => renderGraph(editor, payload)),
+		'graph.render': (payload) =>
+			asClaude(() =>
+				payload.tidy ? tidyGraph(editor, payload) : renderGraph(editor, payload, placeInFreeSpace),
+			),
 		'diagram.render': (payload) => asClaude(() => renderDiagrams(editor, payload)),
-		'ask.show': (payload) => asClaude(() => showQuestion(editor, payload)),
+		'ask.show': (payload) =>
+			asClaude(() => {
+				const result = showQuestion(editor, payload)
+				if (result.created) {
+					moveIntoFreeSpace(editor, questionCardId(payload.askId))
+					bringIntoView(editor, questionCardId(payload.askId))
+				}
+				return result
+			}),
 		'note.render': (payload) => asClaude(() => renderNote(editor, payload)),
 		'prototype.render': (payload) => asClaude(() => renderPrototype(editor, payload)),
 		'comparison.settle': (payload) => asClaude(() => settleComparison(editor, payload)),

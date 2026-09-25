@@ -7,23 +7,22 @@ import { writeLayoutDemo } from '../bench/demo'
 import { runScene, type SceneRun } from '../bench/runScene'
 import { SCENE, USER_SHAPES } from '../bench/scene'
 import { scoreRun } from '../bench/scorecard'
-import { BASELINE_FLAVOUR } from '../src/bridge/layoutFlavours'
 import { hideCollapsedContent } from '../src/comparison/comparisonFrames'
 import type { LayoutDemoManifest } from '../src/demo/layoutDemoManifest'
 import { openSnapshot } from '../src/snapshot/openSnapshot'
 import { createTestEditor } from './createTestEditor'
 
-// The layout benchmark's scene (issue #25) against today's layout, headless.
+// The layout benchmark's scene (issue #25) against the canvas's layout, headless.
 
 let run: SceneRun | undefined
-const baseline = async () => {
-	run ??= await runScene(BASELINE_FLAVOUR, SCENE)
+const sceneRun = async () => {
+	run ??= await runScene(SCENE)
 	return run
 }
 
 describe('the layout benchmark scene', () => {
 	it('records the canvas after every step', async () => {
-		const { steps } = await baseline()
+		const { steps } = await sceneRun()
 		expect(steps.map((step) => step.name)).toEqual(SCENE.steps.map((step) => step.name))
 		const last = steps.at(-1)
 		const decisions = last?.shapes.filter((shape) => shape.role === 'decision_node')
@@ -34,12 +33,12 @@ describe('the layout benchmark scene', () => {
 	})
 
 	it("never lets Claude's shapes overlap each other, not even a graph growing under an open card (#26)", async () => {
-		const card = scoreRun(await baseline(), SCENE)
+		const card = scoreRun(await sceneRun(), SCENE)
 		expect(card.steps.flatMap((step) => step.overlaps.claudeClaude)).toEqual([])
 	})
 
 	it('keeps every user annotation it tracks on the canvas', async () => {
-		const last = (await baseline()).steps.at(-1)
+		const last = (await sceneRun()).steps.at(-1)
 		const ids = new Set(last?.shapes.map((shape) => shape.id))
 		for (const id of SCENE.annotations.ids) expect(ids.has(id)).toBe(true)
 		// The note that answered the card went with the card (ADR 0010).
@@ -49,24 +48,25 @@ describe('the layout benchmark scene', () => {
 
 describe('the layout demo', () => {
 	it('writes every step of a run as a snapshot, with what the step changed', async () => {
-		const sceneRun = await baseline()
+		const demoRun = await sceneRun()
 		const dir = mkdtempSync(join(tmpdir(), 'layout-demo-'))
 		try {
-			const card = scoreRun(sceneRun, SCENE)
-			writeLayoutDemo(dir, [{ run: sceneRun, scene: SCENE, card, summary: 'Today' }])
+			const card = scoreRun(demoRun, SCENE)
+			writeLayoutDemo(dir, [{ run: demoRun, scene: SCENE, card, summary: 'The layout' }])
 			const manifest = JSON.parse(
 				readFileSync(join(dir, 'manifest.json'), 'utf8'),
 			) as LayoutDemoManifest
 			expect(manifest.steps.map((step) => step.name)).toEqual(SCENE.steps.map((s) => s.name))
-			const [demoRun] = manifest.runs
-			expect(demoRun?.steps).toHaveLength(SCENE.steps.length)
-			for (const step of demoRun?.steps ?? [])
+			const [written] = manifest.runs
+			expect(written?.steps).toHaveLength(SCENE.steps.length)
+			for (const step of written?.steps ?? [])
 				expect(existsSync(join(dir, step.snapshot))).toBe(true)
-			// The first render adds nothing and moves nothing; the update after it re-lays the graph out.
-			expect(demoRun?.steps[0]?.highlights.moved).toEqual([])
-			const update = demoRun?.steps[3]?.highlights
+			// The first render adds nothing; the user's drags are theirs; the update adds 3 nodes and moves none.
+			expect(written?.steps[0]?.highlights.moved).toEqual([])
+			expect(written?.steps[1]?.highlights.moved.length).toBeGreaterThan(0)
+			const update = written?.steps[3]?.highlights
 			expect(update?.added.length).toBe(3)
-			expect(update?.moved.length).toBeGreaterThan(0)
+			expect(update?.moved).toEqual([])
 		} finally {
 			rmSync(dir, { recursive: true, force: true })
 		}
@@ -80,7 +80,7 @@ describe('openSnapshot', () => {
 	})
 
 	it("opens the scene's final canvas with every shape on it", async () => {
-		const { snapshot, steps } = await baseline()
+		const { snapshot, steps } = await sceneRun()
 		const editor = createTestEditor({ getShapeVisibility: hideCollapsedContent })
 		editors.push(editor)
 

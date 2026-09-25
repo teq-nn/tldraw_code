@@ -1,6 +1,7 @@
 # Canvas layout: research notes for a "canvas layout" agent skill
 
 Status: research, September 2026. Input for a future project skill. It decides nothing; ADRs do that.
+Outcome: flavour F2 "user-owned space" (§12) was chosen and is now the canvas's only layout; the baseline and F1 are gone ([ADR 0032](../adr/0032-user-owned-layout-placed-nodes-stay-tidy-on-request.md)). Section 0 describes the canvas as it was when this was written.
 Method: primary sources only (papers, official docs, source code, first-party essays). Each claim carries a source tag `[..]` that resolves in **Sources** at the end. **(unverified)** marks a claim I could not trace to a primary source I actually read. Where only an abstract or TLDR was reachable, the tag says so.
 
 ---

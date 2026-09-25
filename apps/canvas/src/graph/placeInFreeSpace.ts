@@ -1,14 +1,9 @@
 import { Box, type Editor, type TLShapeId } from 'tldraw'
 import { ANCHOR_REACH } from '../perception/readCanvas'
 import { isClaudeShape } from '../perception/shapeRoles'
-import { GRAPH_LAYOUT_STYLE, type GraphLayout, type LayoutNode } from './layout'
-import {
-	type GraphPlacement,
-	type GraphToPlace,
-	layOutWholeGraph,
-	nodeShapeId,
-	type PlaceGraph,
-} from './renderGraph'
+import { layOutWholeGraph } from './layOutWholeGraph'
+import { GRAPH_LAYOUT_STYLE, type LayoutNode } from './layout'
+import { type GraphPlacement, type GraphToPlace, nodeShapeId, type PlaceGraph } from './renderGraph'
 
 /** Gap between a new node and Claude's shapes: the layout's own gap between nodes in a rank. */
 const CLAUDE_CLEARANCE = GRAPH_LAYOUT_STYLE.nodesep
@@ -32,15 +27,14 @@ interface Obstacle {
 }
 
 /**
- * Layout flavour F2's placement (issue #28, docs/research/canvas-layout.md
- * §12): the canvas is user-owned space, so a node, once placed, is never
- * moved again, wherever the user dragged it. A new node goes into free space
- * in the rank slot right of its blockers, higher or lower in that column when
- * the slot is taken, else in the nearest free spot. A node that left the
- * graph leaves its gap. A new graph is laid out whole, as the baseline does,
- * in free space.
+ * The placement of every render but a tidy (ADR 0032, issue #28): the canvas
+ * is user-owned space, so a node, once placed, is never moved again, wherever
+ * the user dragged it. A new node goes into free space in the rank slot right
+ * of its blockers, higher or lower in that column when the slot is taken,
+ * else in the nearest free spot. A node that left the graph leaves its gap.
+ * A new graph is laid out whole, in free space.
  */
-export const placeInFreeSpace: PlaceGraph = (editor, graph, layOut) => {
+export const placeInFreeSpace: PlaceGraph = (editor, graph) => {
 	const placed = new Map<string, Box>()
 	for (const node of graph.nodes) {
 		if (!graph.drawn.has(node.id)) continue
@@ -49,7 +43,7 @@ export const placeInFreeSpace: PlaceGraph = (editor, graph, layOut) => {
 	}
 	const newNodes = graph.nodes.filter((node) => !placed.has(node.id))
 	const obstacles = obstaclesOnPage(editor, new Set(newNodes.map((node) => nodeShapeId(node.id))))
-	if (placed.size === 0) return layOutWholeGraphInFreeSpace(editor, graph, layOut, obstacles)
+	if (placed.size === 0) return layOutWholeGraphInFreeSpace(editor, graph, obstacles)
 
 	const positions = new Map<string, { x: number; y: number }>()
 	for (const node of blockersFirst(newNodes, graph)) {
@@ -64,8 +58,9 @@ export const placeInFreeSpace: PlaceGraph = (editor, graph, layOut) => {
 
 /**
  * Move a shape Claude just drew as little as needed to keep clear of
- * everything else on the page, the user's shapes beyond anchor reach: F2's
- * guard for content the baseline places (a question card below the graph).
+ * everything else on the page, the user's shapes beyond anchor reach: the
+ * guard for content placed by rules of its own (a new question card below
+ * the graph), so it takes over none of the user's anchors (ADR 0008).
  */
 export function moveIntoFreeSpace(editor: Editor, id: TLShapeId): void {
 	const shape = editor.getShape(id)
@@ -82,14 +77,13 @@ export function moveIntoFreeSpace(editor: Editor, id: TLShapeId): void {
 	})
 }
 
-/** The baseline's layout of a new graph, moved as little as needed to keep clear of what is on the page. */
+/** The whole layout of a new graph, moved as little as needed to keep clear of what is on the page. */
 function layOutWholeGraphInFreeSpace(
 	editor: Editor,
 	graph: GraphToPlace,
-	layOut: GraphLayout,
 	obstacles: Obstacle[],
 ): GraphPlacement {
-	const whole = layOutWholeGraph(editor, graph, layOut)
+	const whole = layOutWholeGraph(editor, graph)
 	const block = Box.Common(
 		graph.nodes.flatMap((node) => {
 			const at = whole.positions.get(node.id)

@@ -7,7 +7,7 @@ import type {
 } from '@tldraw-code/protocol'
 import { Box, type Editor, serializeTldrawJson, type TLShapeId } from 'tldraw'
 import { watchQuestionCards } from '../src/ask/watchQuestionCards'
-import type { LayoutFlavour } from '../src/bridge/layoutFlavours'
+import { createCommandHandlers } from '../src/bridge/commandHandlers'
 import { hideCollapsedContent } from '../src/comparison/comparisonFrames'
 import { isClaudeShape } from '../src/perception/shapeRoles'
 import { createTestEditor } from '../test/createTestEditor'
@@ -40,27 +40,22 @@ export interface StepRecord {
 }
 
 export interface SceneRun {
-	/** The run's name: its flavour's, or a variant's such as `user-owned+tidy`. */
-	flavour: string
+	/** The run's name, such as `user-owned+tidy`. */
+	name: string
 	steps: StepRecord[]
 	/** The final canvas as a `.tldr` file. */
 	snapshot: string
 }
 
 /**
- * Replay the scene against a headless editor running the flavour's command
+ * Replay the scene against a headless editor running the canvas's command
  * handlers, as the canvas app wires them (question cards watched for note
  * answers, collapsed content hidden), and record the canvas after every step.
- * The run goes by `name`, the flavour's own by default.
  */
-export async function runScene(
-	flavour: LayoutFlavour,
-	scene: Scene,
-	name = flavour.name,
-): Promise<SceneRun> {
+export async function runScene(scene: Scene, name = 'user-owned'): Promise<SceneRun> {
 	const editor = createTestEditor({ getShapeVisibility: hideCollapsedContent })
 	editor.updateViewportScreenBounds(SCREEN)
-	const handlers = flavour.createHandlers(editor, {
+	const handlers = createCommandHandlers(editor, {
 		capture: async () => {
 			throw new Error('The layout benchmark takes no screenshots.')
 		},
@@ -108,7 +103,7 @@ export async function runScene(
 			})
 		}
 		return {
-			flavour: name,
+			name,
 			steps,
 			snapshot: steps.at(-1)?.snapshot ?? (await serializeTldrawJson(editor)),
 		}

@@ -10,6 +10,7 @@ import {
 import { getQuestionCards, questionCardId, showQuestion } from '../src/ask/showQuestion'
 import { answeredQuestionCards, watchQuestionCards } from '../src/ask/watchQuestionCards'
 import { createCommandHandlers } from '../src/bridge/commandHandlers'
+import { placeInFreeSpace } from '../src/graph/placeInFreeSpace'
 import { renderGraph } from '../src/graph/renderGraph'
 import { createTestEditor } from './createTestEditor'
 
@@ -86,11 +87,15 @@ describe('ask.show', () => {
 	})
 
 	it('places the card below the frontier graph', () => {
-		renderGraph(editor, {
-			nodes: [{ id: 'a', title: 'Storage', status: 'open' }],
-			edges: [],
-			frontier: ['a'],
-		})
+		renderGraph(
+			editor,
+			{
+				nodes: [{ id: 'a', title: 'Storage', status: 'open' }],
+				edges: [],
+				frontier: ['a'],
+			},
+			placeInFreeSpace,
+		)
 		const graph = editor.getShapePageBounds(createShapeId('graph-node:a'))
 
 		showQuestion(editor, payload)
@@ -184,11 +189,15 @@ describe('collapsing into the graph', () => {
 	}
 
 	it('removes the answered card named in the render and shows the note on the node', () => {
-		renderGraph(editor, { ...open, frontier: ['a'] })
+		renderGraph(editor, { ...open, frontier: ['a'] }, placeInFreeSpace)
 		showQuestion(editor, payload)
 		answerQuestionCard(editor, card(), { answerKind: 'option', answerOption: 0 })
 
-		const result = renderGraph(editor, { ...resolved, frontier: [], collapseQuestion: 'q1' })
+		const result = renderGraph(
+			editor,
+			{ ...resolved, frontier: [], collapseQuestion: 'q1' },
+			placeInFreeSpace,
+		)
 
 		expect(result.questionCollapsed).toBe(true)
 		expect(getQuestionCards(editor)).toEqual([])
@@ -198,7 +207,11 @@ describe('collapsing into the graph', () => {
 
 	it('keeps a card that is still waiting for an answer', () => {
 		showQuestion(editor, payload)
-		const result = renderGraph(editor, { ...open, frontier: ['a'], collapseQuestion: 'q1' })
+		const result = renderGraph(
+			editor,
+			{ ...open, frontier: ['a'], collapseQuestion: 'q1' },
+			placeInFreeSpace,
+		)
 		expect(result.questionCollapsed).toBe(false)
 		expect(getQuestionCards(editor)).toHaveLength(1)
 	})
@@ -206,7 +219,11 @@ describe('collapsing into the graph', () => {
 	it('leaves a card it is not told about alone', () => {
 		showQuestion(editor, payload)
 		answerQuestionCard(editor, card(), { answerKind: 'option', answerOption: 0 })
-		const result = renderGraph(editor, { ...resolved, frontier: [], collapseQuestion: 'q9' })
+		const result = renderGraph(
+			editor,
+			{ ...resolved, frontier: [], collapseQuestion: 'q9' },
+			placeInFreeSpace,
+		)
 		expect(result.questionCollapsed).toBe(false)
 		expect(getQuestionCards(editor)).toHaveLength(1)
 	})
@@ -223,7 +240,7 @@ describe('collapsing into the graph', () => {
 		})
 		const nearby = addNote('Unrelated thought', bounds.minX, bounds.maxY + 20)
 
-		renderGraph(editor, { ...resolved, frontier: [], collapseQuestion: 'q1' })
+		renderGraph(editor, { ...resolved, frontier: [], collapseQuestion: 'q1' }, placeInFreeSpace)
 
 		expect(getQuestionCards(editor)).toEqual([])
 		expect(editor.getShape(answer)).toBeUndefined()
@@ -232,24 +249,24 @@ describe('collapsing into the graph', () => {
 	})
 
 	it('brings the graph back into view', () => {
-		renderGraph(editor, { ...open, frontier: ['a'] })
+		renderGraph(editor, { ...open, frontier: ['a'] }, placeInFreeSpace)
 		showQuestion(editor, payload)
 		answerQuestionCard(editor, card(), { answerKind: 'option', answerOption: 0 })
 		editor.centerOnPoint({ x: 5000, y: 5000 })
 
-		renderGraph(editor, { ...resolved, frontier: [], collapseQuestion: 'q1' })
+		renderGraph(editor, { ...resolved, frontier: [], collapseQuestion: 'q1' }, placeInFreeSpace)
 
 		const node = editor.getShapePageBounds(createShapeId('graph-node:a'))
 		expect(node && editor.getViewportPageBounds().contains(node)).toBe(true)
 	})
 
 	it('undoes together with the render', () => {
-		renderGraph(editor, { ...open, frontier: ['a'] })
+		renderGraph(editor, { ...open, frontier: ['a'] }, placeInFreeSpace)
 		showQuestion(editor, payload)
 		answerQuestionCard(editor, card(), { answerKind: 'keep_grilling' })
 		editor.markHistoryStoppingPoint()
 
-		renderGraph(editor, { ...resolved, frontier: [], collapseQuestion: 'q1' })
+		renderGraph(editor, { ...resolved, frontier: [], collapseQuestion: 'q1' }, placeInFreeSpace)
 		editor.undo()
 
 		expect(getQuestionCards(editor)).toHaveLength(1)

@@ -21,7 +21,7 @@ import {
 
 /**
  * The layout demo (`?demo`): the layout benchmark's scene, step by step, with
- * every run side by side, so layout flavours can be judged by eye. Each panel
+ * every run side by side, so layouts can be judged by eye. Each panel
  * is a read-only canvas showing that run's snapshot after the current step,
  * with what the step changed drawn over it. Run `pnpm bench:layout` first.
  *

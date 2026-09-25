@@ -2,7 +2,7 @@ import type { PageBox } from '@tldraw-code/protocol'
 
 /**
  * The layout benchmark's metrics (issue #25, docs/research/canvas-layout.md
- * §10): pure geometry on page boxes, so any layout flavour is scored the
+ * §10): pure geometry on page boxes, so any run is scored the
  * same way. An edge is drawn as the straight segment between the centres of
  * its nodes, as the canvas draws a dependency.
  */

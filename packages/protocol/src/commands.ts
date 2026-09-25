@@ -52,10 +52,10 @@ export const canvasCommands = {
 			 */
 			collapseQuestion: AskIdSchema.optional(),
 			/**
-			 * Lay the whole graph out afresh this once, where it is (issue #29):
-			 * layout flavour F2 then moves every node, and the user's notes
-			 * anchored to a node with it. Flavours that lay the whole graph out
-			 * on every render (the baseline, F1) render as they always do.
+			 * Tidy: lay the whole graph out afresh this once, where it is
+			 * (ADR 0032, issue #29). Every node moves, and the user's notes
+			 * anchored to a node move with it. Without it, drawn nodes keep
+			 * their place and new ones go into free space beside their blockers.
 			 */
 			tidy: z.boolean().optional(),
 		}),

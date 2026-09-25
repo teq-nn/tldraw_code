@@ -29,16 +29,16 @@ import { boxGap } from './metrics'
 
 /**
  * The layout benchmark's scene (issue #25, docs/research/canvas-layout.md
- * §12): one representative session, replayed identically for every layout
- * flavour. Claude acts through the canvas commands, exactly as the MCP server
- * sends them; the user acts directly on the editor, as their tools would.
- * Where the user puts something depends on where the flavour put Claude's
- * shapes ("a note on `schema`"), so every flavour gets the same intent.
+ * §12): one representative session, replayed identically for every run.
+ * Claude acts through the canvas commands, exactly as the MCP server sends
+ * them; the user acts directly on the editor, as their tools would. Where the
+ * user puts something depends on where the layout put Claude's shapes ("a
+ * note on `schema`"), so every run gets the same intent.
  */
 
 export interface SceneContext {
 	editor: Editor
-	/** Run one canvas command as Claude, through the flavour's handlers. */
+	/** Run one canvas command as Claude, through the canvas's handlers. */
 	claude<N extends CanvasCommandName>(
 		command: N,
 		payload: CanvasCommandPayload<N>,
@@ -557,8 +557,7 @@ export const SCENE: Scene = {
  * The scene with a tidy after step 7 (issue #29): Claude re-renders the graph
  * of step 7 with `tidy`, as the user asked, and the scene goes on. Only the
  * tidy step is added, so the anchors and stability spans score as in
- * {@link SCENE}. Scored for F2 only: under the flavours that lay the graph out
- * on every render, the tidy is a plain re-render.
+ * {@link SCENE}.
  */
 export const SCENE_WITH_TIDY: Scene = {
 	...SCENE,

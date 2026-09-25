@@ -2,6 +2,7 @@ import type { CanvasCommandPayload, CanvasCommandResult } from '@tldraw-code/pro
 import { Box, type Editor, type TLArrowBinding, type TLShapeId } from 'tldraw'
 import { anchorOf } from '../perception/readCanvas'
 import { isClaudeShape } from '../perception/shapeRoles'
+import { layOutWholeGraph } from './layOutWholeGraph'
 import { ringOffsets } from './placeInFreeSpace'
 import { renderGraph } from './renderGraph'
 
@@ -11,9 +12,9 @@ const STEP = 20
 const MAX_RINGS = 20
 
 /**
- * A tidy (issue #29): layout flavour F2's one-shot full re-layout, as
- * FigJam's "Tidy up". The graph is laid out afresh at its stored origin, as
- * the baseline lays it out on every render, and every user shape anchored to
+ * A tidy (ADR 0032, issue #29): the one-shot full re-layout of the user-owned
+ * layout, as FigJam's "Tidy up". The graph is laid out afresh at its stored
+ * origin, and every user shape anchored to
  * a decision node (ADR 0008) moves with that node, so it keeps its anchor:
  * by the node's own move, then as little further as it takes to stay clear of
  * Claude's other shapes, or at least to keep a neighbour of the node from
@@ -30,7 +31,7 @@ export function tidyGraph(
 			return bounds ? [[node, bounds.point] as const] : []
 		}),
 	)
-	const result = renderGraph(editor, payload)
+	const result = renderGraph(editor, payload, layOutWholeGraph)
 	editor.run(() => {
 		for (const [id, node] of followers) {
 			const shape = editor.getShape(id)

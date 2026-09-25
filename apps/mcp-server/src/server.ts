@@ -174,8 +174,9 @@ export function createMcpServer(bridge: CanvasBridge, options: McpServerOptions 
 				'note; in_progress = being worked on right now, not on the frontier) ' +
 				'and dependency edges {from, to} meaning "from must be resolved before to". ' +
 				'Layout, status colours and the frontier (open nodes whose blockers are all resolved, highlighted) ' +
-				'are computed for you. Nodes and edges are matched by id: existing shapes are updated, ' +
-				'new ones added, and ones missing from this call removed. If you have received the answer to ' +
+				'are computed for you. Nodes and edges are matched by id: existing shapes are updated in place ' +
+				'(a node already drawn keeps its position, even one the user moved), new ones are added in free ' +
+				'space beside their blockers, and ones missing from this call are removed. If you have received the answer to ' +
 				'the question card on the canvas, the card is removed: put the answer into the note of the ' +
 				'decision node it settled.',
 			inputSchema: {
@@ -184,10 +185,8 @@ export function createMcpServer(bridge: CanvasBridge, options: McpServerOptions 
 					.boolean()
 					.optional()
 					.describe(
-						'Tidy the graph: lay it out afresh this once, where it is. Where drawn nodes keep their place ' +
-							"(the canvas's user-owned layout), every node moves and the user's notes on a node move " +
-							'with it; elsewhere the graph is laid out afresh on every render anyway. Only when the ' +
-							'user asked for or agreed to a tidy.',
+						'Tidy the graph: lay it out afresh this once, where it is. Every node moves, and the ' +
+							"user's notes on a node move with it. Only when the user asked for or agreed to a tidy.",
 					),
 			},
 		},

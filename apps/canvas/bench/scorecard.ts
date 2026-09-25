@@ -18,7 +18,7 @@ import type { Scene } from './scene'
 
 /**
  * The layout benchmark's scorecard (issue #25): the metrics of every step of
- * one flavour's run of the scene, and their aggregate.
+ * one run of the scene, and their aggregate.
  */
 
 export interface GraphScore {
@@ -56,7 +56,8 @@ export interface StabilityScore {
 }
 
 export interface Scorecard {
-	flavour: string
+	/** The run's name. */
+	name: string
 	steps: StepScore[]
 	stability: StabilityScore[]
 	/** Page bounds after the last step. */
@@ -95,7 +96,7 @@ export function scoreRun(run: SceneRun, scene: Scene): Scorecard {
 	const page = union(topLevel(run.steps.at(-1)?.shapes ?? []).map((shape) => shape.bounds))
 	const graphs = steps.flatMap((step) => (step.graph ? [step.graph] : []))
 	return {
-		flavour: run.flavour,
+		name: run.name,
 		steps,
 		stability,
 		footprint: { w: page?.w ?? 0, h: page?.h ?? 0 },
@@ -325,14 +326,14 @@ export function formatScorecard(card: Scorecard): string {
 	].join('\n')
 }
 
-/** The aggregate of every flavour side by side. */
+/** The aggregate of every run side by side. */
 export function formatComparison(cards: Scorecard[]): string {
 	const column = (cell: (card: Scorecard) => string, label: string): Row => [
 		label,
 		...cards.map(cell),
 	]
 	return table([
-		['', ...cards.map((card) => card.flavour)],
+		['', ...cards.map((card) => card.name)],
 		column((c) => ratio(c.aggregate.graph.crossings), 'Crossings (1 = none)'),
 		column((c) => count(c.aggregate.graph.backwardEdges), 'Backward edges'),
 		column((c) => ratio(c.aggregate.graph.edgeLengthCv), 'Edge length CV'),

@@ -1,5 +1,5 @@
 ---
-status: accepted, amended by ADR 0018 (fourth status in_progress)
+status: accepted, amended by ADR 0018 (fourth status in_progress); placement superseded by ADR 0032
 ---
 
 # `render_graph` input schema, frontier and update semantics
@@ -32,7 +32,7 @@ The tool takes the **whole graph** on every call (declarative, not a diff):
 - The **frontier is derived, never supplied**: open nodes whose blockers (all `from` ends of incoming edges) are resolved. The MCP server computes it (`computeFrontier`), sends it with the `graph.render` command, and echoes it in the tool result so Claude sees what is next. `status` is taken as given: an `open` node with an unresolved blocker stays blue but is off the frontier; `blocked` is for decisions blocked by something outside the graph or explicitly parked.
 - **Look**: status is the colour (open blue, resolved green, blocked red, blocked also dashed). Frontier nodes stand out with a tinted solid fill, heavy outline and larger text; everything else keeps a plain white fill. Edges are grey arrows bound to both nodes, so they follow when the user drags a node.
 - **Identity and updates**: each node's shape id is derived from its node id (`shape:graph-node:<id>`), each edge's from its endpoints (`shape:graph-edge:<from>-><to>`), and every graph shape carries `meta.graphPart`. A call updates existing shapes in place, creates missing ones and deletes graph shapes whose node or edge is gone; shapes it does not own are never touched. The whole update is one undo step.
-- **Placement**: a first render is centred in the viewport (zooming out if needed); the layout origin is stored in each graph shape's meta, and later renders reuse it, so the graph does not jump when the user has panned away. Positions are always recomputed, so manual moves of graph nodes are not preserved.
+- **Placement**: a first render is centred in the viewport (zooming out if needed); the layout origin is stored in each graph shape's meta, and later renders reuse it, so the graph does not jump when the user has panned away. Positions are always recomputed, so manual moves of graph nodes are not preserved. _Superseded by ADR 0032: a placed node keeps its place, manual moves included; the graph is laid out afresh only by a tidy._
 
 ## Considered Options
 
