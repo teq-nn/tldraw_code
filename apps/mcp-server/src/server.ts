@@ -342,8 +342,8 @@ export function createMcpServer(bridge: CanvasBridge, options: McpServerOptions 
 		{
 			title: 'Compare alternatives and ask',
 			description:
-				'Show 2 or 3 alternatives side by side and ask the user which to take: a question card is ' +
-				'attached below them (via ask), with one button per alternative, your recommendation marked, and "' +
+				'Show 2 or 3 alternatives next to each other and ask the user which to take: a question card is ' +
+				'attached beside them (via ask), with one button per alternative, your recommendation marked, and "' +
 				`${KEEP_GRILLING_LABEL}". Use it when the user has to see the alternatives to choose (structures ` +
 				'or flows whose difference is their shape, UIs whose look or feel decides) or asks to see them; ' +
 				'when a few words per option tell them apart, use ask. Items are all ' +
@@ -422,7 +422,7 @@ export function createMcpServer(bridge: CanvasBridge, options: McpServerOptions 
 		return describeComparison(input, differences, rendered.frameIds)
 	}
 
-	/** Show prototype alternatives in prototype frames side by side (ADR 0020). */
+	/** Show prototype alternatives in prototype frames in a compact grid (ADR 0020, ADR 0029). */
 	const showPrototypeAlternatives = async (input: CompareInput) => {
 		const lines: string[] = []
 		for (const [index, item] of input.items.entries()) {
@@ -434,14 +434,14 @@ export function createMcpServer(bridge: CanvasBridge, options: McpServerOptions 
 				...(item.caption ? { caption: item.caption } : {}),
 				...(item.width ? { width: item.width } : {}),
 				...(item.height ? { height: item.height } : {}),
-				comparison: { id: input.id, index },
+				comparison: { id: input.id, index, count: input.items.length },
 			})
 			lines.push(
 				`- ${item.label}: prototype "${id}" in shape ${result.shapeId} (viewport ${result.width} x ${result.height} px)`,
 			)
 		}
 		return [
-			`Showing ${input.items.length} prototypes side by side for "${input.id}"; a question card below them ` +
+			`Showing ${input.items.length} prototypes next to each other for "${input.id}"; a question card beside them ` +
 				'asks which to take. The user can click through each one first.',
 			...lines,
 			'A sketch or sticky note on one of them shows up in read_canvas anchored to it; to act on it, ' +
@@ -641,8 +641,8 @@ function describeComparison(
 	frameIds: string[],
 ): string {
 	const lines = [
-		`Showing ${input.items.length} alternatives side by side for "${input.id}" (frames ${frameIds.join(', ')}); ` +
-			'a question card below them asks which to take.',
+		`Showing ${input.items.length} alternatives next to each other for "${input.id}" (frames ${frameIds.join(', ')}); ` +
+			'a question card beside them asks which to take.',
 	]
 	const any = differences.some((d) => d.nodes.length + d.edges.length > 0)
 	if (!any) {

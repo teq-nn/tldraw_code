@@ -218,7 +218,7 @@ describe('compare', () => {
 		const result = await pending
 		expect(result.isError).toBeFalsy()
 		const text = textOf(result)
-		expect(text).toContain('Showing 2 alternatives side by side')
+		expect(text).toContain('Showing 2 alternatives next to each other')
 		expect(text).toContain('- Queued: nodes queue; edges api->queue, queue->db')
 		expect(text).toContain('- Direct: edges api->db')
 		expect(text).toContain('The user chose: Queued (your recommendation).')
@@ -353,7 +353,7 @@ describe('compare with prototypes (ADR 0020)', () => {
 					label: 'Tabs',
 					caption: 'Sign in and sign up as tabs.',
 					html: tabs,
-					comparison: { id: 'login', index: 0 },
+					comparison: { id: 'login', index: 0, count: 2 },
 				},
 			},
 			{
@@ -363,7 +363,7 @@ describe('compare with prototypes (ADR 0020)', () => {
 					html: single,
 					width: 400,
 					height: 300,
-					comparison: { id: 'login', index: 1 },
+					comparison: { id: 'login', index: 1, count: 2 },
 				},
 			},
 		])
@@ -376,7 +376,7 @@ describe('compare with prototypes (ADR 0020)', () => {
 			answer: { kind: 'option', option: 0 },
 		})
 		const text = textOf(await pending)
-		expect(text).toContain('Showing 2 prototypes side by side for "login"')
+		expect(text).toContain('Showing 2 prototypes next to each other for "login"')
 		expect(text).toContain('- Tabs: prototype "login-tabs"')
 		expect(text).toContain('The user chose: Tabs.')
 		expect(text).toContain('call settle_comparison with id "login"')

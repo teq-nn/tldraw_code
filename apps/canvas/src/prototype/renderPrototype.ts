@@ -3,9 +3,12 @@ import {
 	type CanvasCommandResult,
 	DEFAULT_PROTOTYPE_HEIGHT,
 	DEFAULT_PROTOTYPE_WIDTH,
+	MAX_COMPARE_ITEMS,
 } from '@tldraw-code/protocol'
 import { Box, createShapeId, type Editor, type TLShapeId } from 'tldraw'
+import { gridColumns, QUESTION_CARD_SLOT } from '../comparison/arrangement'
 import {
+	type ComparisonFrame,
 	choiceOf,
 	getComparisonFrames,
 	type PrototypeComparisonMeta,
@@ -104,10 +107,11 @@ export function renderPrototype(editor: Editor, payload: RenderPayload): RenderR
 			return
 		}
 		const size = { w: props.w, h: props.h }
-		const left = comparison ? previousAlternative(editor, comparison) : source
-		const position = isPrototypeFrame(left)
-			? besideSource(editor, left, size)
-			: newOrigin(editor, size)
+		const position = payload.comparison
+			? alternativePosition(editor, payload.comparison, size)
+			: isPrototypeFrame(source)
+				? besideSource(editor, source, size)
+				: newOrigin(editor, size)
 		editor.createShape<PrototypeFrameShape>({
 			id: shapeId,
 			type: PROTOTYPE_FRAME_TYPE,
@@ -139,14 +143,37 @@ export function renderPrototype(editor: Editor, payload: RenderPayload): RenderR
 	}
 }
 
-/** The prototype right before alternative `comparisonIndex` in its comparison's row (ADR 0020). */
-function previousAlternative(editor: Editor, comparison: PrototypeComparisonMeta) {
-	if (comparison.comparisonIndex === 0) return undefined
-	return getComparisonFrames(editor, comparison.comparisonId)
-		.filter((frame) => frame.index < comparison.comparisonIndex)
-		.map((frame) => frame.shape)
-		.filter(isPrototypeFrame)
-		.at(-1)
+/**
+ * Where a new alternative of a comparison goes (ADR 0029): the alternatives
+ * fill a compact grid, sized from the first one, whose columns
+ * {@link gridColumns} picks. The first goes right of the page content with
+ * the question card's slot kept free on its left; one that starts a row goes
+ * below the rows before, aligned with the first; any other right of the
+ * alternative before it.
+ */
+function alternativePosition(
+	editor: Editor,
+	comparison: NonNullable<RenderPayload['comparison']>,
+	size: { w: number; h: number },
+) {
+	const earlier = getComparisonFrames(editor, comparison.id)
+		.filter((frame) => frame.index < comparison.index && isPrototypeFrame(frame.shape))
+		.flatMap((frame) => {
+			const bounds = editor.getShapePageBounds(frame.shape.id)
+			return bounds ? [{ ...frame, bounds }] : []
+		})
+	const first = earlier[0]
+	if (!first) return newOrigin(editor, size, QUESTION_CARD_SLOT)
+	const count = comparison.count ?? MAX_COMPARE_ITEMS
+	const columns = gridColumns(count, first.bounds, PROTOTYPE_GAP, QUESTION_CARD_SLOT)
+	const rowOf = (frame: Pick<ComparisonFrame, 'index'>) => Math.floor(frame.index / columns)
+	if (comparison.index % columns === 0) {
+		const above = earlier.filter((frame) => rowOf(frame) < rowOf(comparison))
+		const bottom = Math.max(first.bounds.maxY, ...above.map((frame) => frame.bounds.maxY))
+		return { x: Math.round(first.bounds.minX), y: Math.round(bottom + PROTOTYPE_GAP) }
+	}
+	const previous = earlier.at(-1)?.shape
+	return isPrototypeFrame(previous) ? besideSource(editor, previous, size) : newOrigin(editor, size)
 }
 
 /** Right of the source prototype, top-aligned, past every top-level shape in the way. */
@@ -174,10 +201,19 @@ function besideSource(editor: Editor, source: PrototypeFrameShape, size: { w: nu
 	return { x: candidate.x, y: candidate.y }
 }
 
-/** Right of everything on the page, top-aligned with it; on an empty page, centred in the viewport. */
-function newOrigin(editor: Editor, size: { w: number; h: number }) {
+/**
+ * Right of everything on the page, top-aligned with it, `reserved` further
+ * right to keep a slot free on the left; on an empty page, centred in the
+ * viewport together with that slot.
+ */
+function newOrigin(editor: Editor, size: { w: number; h: number }, reserved = 0) {
 	const content = editor.getCurrentPageBounds()
-	if (content) return { x: Math.round(content.maxX + CONTENT_GAP), y: Math.round(content.minY) }
+	if (content) {
+		return { x: Math.round(content.maxX + CONTENT_GAP + reserved), y: Math.round(content.minY) }
+	}
 	const center = editor.getViewportPageBounds().center
-	return { x: Math.round(center.x - size.w / 2), y: Math.round(center.y - size.h / 2) }
+	return {
+		x: Math.round(center.x - (size.w + reserved) / 2 + reserved),
+		y: Math.round(center.y - size.h / 2),
+	}
 }

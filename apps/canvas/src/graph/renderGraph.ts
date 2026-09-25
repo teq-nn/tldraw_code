@@ -19,7 +19,8 @@ import {
 	toRichText,
 } from 'tldraw'
 import { collapseAnsweredQuestion } from '../ask/collapseQuestion'
-import { choicePinMeta } from '../comparison/comparisonFrames'
+import { QUESTION_CARD_SLOT } from '../comparison/arrangement'
+import { choicePinMeta, prototypeComparisonOf } from '../comparison/comparisonFrames'
 import { diagramMeta } from '../diagram/renderDiagrams'
 import { PROTOTYPE_FRAME_TYPE } from '../prototype/PrototypeShapeUtil'
 import { layoutGraph } from './layout'
@@ -257,7 +258,9 @@ const ROW_GAP = 80
  * Keep a growing graph out of the rows of diagram and prototype frames placed
  * to its right (ADR 0015, ADR 0017): when the graph at `origin` would run into
  * one, it moves left by the overlap, so everything else stays where the user
- * saw it. Frames the graph lies to the right of are left alone.
+ * saw it. Frames the graph lies to the right of are left alone. A
+ * comparison's frames count with the slot for their question card on the
+ * left (ADR 0029).
  */
 function clearOfRows(
 	editor: Editor,
@@ -274,7 +277,19 @@ function clearOfRows(
 		)
 		.flatMap((shape) => {
 			const bounds = editor.getShapePageBounds(shape.id)
-			return bounds && bounds.minX > graph.minX ? [bounds] : []
+			if (!bounds || bounds.minX <= graph.minX) return []
+			const compared =
+				diagramMeta(shape.meta)?.diagramKind === 'comparison' || prototypeComparisonOf(shape)
+			return compared
+				? [
+						new Box(
+							bounds.x - QUESTION_CARD_SLOT,
+							bounds.y,
+							bounds.w + QUESTION_CARD_SLOT,
+							bounds.h,
+						),
+					]
+				: [bounds]
 		})
 		.filter((bounds) => Box.Collides(Box.ExpandBy(graph, ROW_GAP), bounds))
 	if (rows.length === 0) return origin

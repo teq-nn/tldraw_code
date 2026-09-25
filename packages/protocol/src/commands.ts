@@ -136,9 +136,10 @@ export const canvasCommands = {
 			width: RenderPrototypeShape.width,
 			height: RenderPrototypeShape.height,
 			/**
-			 * The prototype is alternative `index` of the comparison `id` (`compare`,
-			 * ADR 0020): a new one goes right of alternative `index - 1`, the first to
-			 * the right of the page content, and the question card goes below them.
+			 * The prototype is alternative `index` of `count` in the comparison `id`
+			 * (`compare`, ADR 0020): the first new one goes right of the page content,
+			 * with room for the question card on its left; the others fill a compact
+			 * grid after it, right of or below the alternatives before (ADR 0029).
 			 */
 			comparison: z
 				.object({
@@ -148,6 +149,8 @@ export const canvasCommands = {
 						.int()
 						.min(0)
 						.max(MAX_COMPARE_ITEMS - 1),
+					/** How many alternatives the comparison has; defaults to the most allowed. */
+					count: z.number().int().min(1).max(MAX_COMPARE_ITEMS).optional(),
 				})
 				.optional(),
 		}),

@@ -109,7 +109,7 @@ The JSON graph a diagram is drawn from: nodes `{ id, label, look? }` and edges `
 _Avoid_: Mermaid, definition, source
 
 **Comparison**:
-2 or 3 alternatives shown side by side by `compare`, each in its own frame, with a question card below asking which to take. All diagrams (one shared layout, differences highlighted, ADR 0015) or all prototypes (ADR 0020). Keyed by an id, usually that of the decision node it settles.
+2 or 3 alternatives shown by `compare`, each in its own frame, arranged in a compact block with a question card on their left asking which to take (ADR 0029). All diagrams (one shared layout, differences highlighted, ADR 0015) or all prototypes (ADR 0020). Keyed by an id, usually that of the decision node it settles.
 _Avoid_: diff view, variants view
 
 **Alternative**:
