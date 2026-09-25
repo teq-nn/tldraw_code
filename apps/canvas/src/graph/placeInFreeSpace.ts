@@ -195,7 +195,7 @@ function isFree(box: Box, obstacles: Obstacle[]): boolean {
 }
 
 /** The grid offsets on the square ring `ring` steps out from the centre. */
-function ringOffsets(ring: number): [number, number][] {
+export function ringOffsets(ring: number): [number, number][] {
 	if (ring === 0) return [[0, 0]]
 	const offsets: [number, number][] = []
 	for (let i = -ring; i <= ring; i++) offsets.push([i, -ring], [i, ring])

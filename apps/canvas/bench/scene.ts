@@ -180,12 +180,13 @@ const fourthGraph = {
 const renderGraph = (
 	{ claude }: SceneContext,
 	graph: typeof firstGraph,
-	collapseQuestion?: string,
+	{ collapseQuestion, tidy }: { collapseQuestion?: string; tidy?: boolean } = {},
 ) =>
 	claude('graph.render', {
 		...graph,
 		frontier: computeFrontier(graph),
 		...(collapseQuestion ? { collapseQuestion } : {}),
+		...(tidy ? { tidy } : {}),
 	})
 
 // --- The comparisons ------------------------------------------------------------------------
@@ -416,7 +417,7 @@ export const SCENE: Scene = {
 		{
 			name: 'update',
 			async run(context) {
-				await renderGraph(context, secondGraph, AUTH_ASK)
+				await renderGraph(context, secondGraph, { collapseQuestion: AUTH_ASK })
 			},
 		},
 		{
@@ -511,7 +512,7 @@ export const SCENE: Scene = {
 					text: 'Retention is part of the migration decision.',
 					replyTo: USER_SHAPES.noteFloating,
 				})
-				await renderGraph(context, thirdGraph, SYNC_ASK)
+				await renderGraph(context, thirdGraph, { collapseQuestion: SYNC_ASK })
 			},
 			focus: () => ({
 				content: [agentNoteShapeId(REPLY_NOTE)],
@@ -532,5 +533,26 @@ export const SCENE: Scene = {
 			},
 			focus: () => ({ content: [questionCardId(RELEASE_ASK)], subject: [nodeShapeId('release')] }),
 		},
+	],
+}
+
+/**
+ * The scene with a tidy after step 7 (issue #29): Claude re-renders the graph
+ * of step 7 with `tidy`, as the user asked, and the scene goes on. Only the
+ * tidy step is added, so the anchors and stability spans score as in
+ * {@link SCENE}. Scored for F2 only: under the flavours that lay the graph out
+ * on every render, the tidy is a plain re-render.
+ */
+export const SCENE_WITH_TIDY: Scene = {
+	...SCENE,
+	steps: [
+		...SCENE.steps.slice(0, 7),
+		{
+			name: 'tidy',
+			async run(context) {
+				await renderGraph(context, thirdGraph, { tidy: true })
+			},
+		},
+		...SCENE.steps.slice(7),
 	],
 }

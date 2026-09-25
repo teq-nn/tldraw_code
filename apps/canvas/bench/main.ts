@@ -7,7 +7,8 @@
  *   pnpm bench:layout              # every flavour
  *   pnpm bench:layout baseline     # only the named ones
  *
- * Flavours are registered in `src/bridge/layoutFlavours.ts`.
+ * Flavours are registered in `src/bridge/layoutFlavours.ts`. Next to them
+ * runs `user-owned+tidy`: F2 on the scene with a tidy after step 7 (#29).
  */
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join, relative } from 'node:path'
@@ -34,32 +35,49 @@ for (const key of Object.getOwnPropertyNames(dom.window)) {
 // Imported after the DOM exists: tldraw looks for it when it loads.
 const { LAYOUT_FLAVOURS } = await import('../src/bridge/layoutFlavours')
 const { runScene } = await import('./runScene')
-const { SCENE } = await import('./scene')
+const { SCENE, SCENE_WITH_TIDY } = await import('./scene')
 const { formatComparison, formatScorecard, scoreRun } = await import('./scorecard')
 
+/** Every run: each flavour on the scene, and F2 on the scene with a tidy (#29). */
+const RUNS = [
+	...LAYOUT_FLAVOURS.map((flavour) => ({
+		name: flavour.name,
+		flavour,
+		scene: SCENE,
+		summary: flavour.summary,
+	})),
+	...LAYOUT_FLAVOURS.filter((flavour) => flavour.name === 'user-owned').map((flavour) => ({
+		name: `${flavour.name}+tidy`,
+		flavour,
+		scene: SCENE_WITH_TIDY,
+		summary: `${flavour.summary} With a tidy after step 7.`,
+	})),
+]
+
 const wanted = process.argv.slice(2)
-const unknown = wanted.filter((name) => !LAYOUT_FLAVOURS.some((flavour) => flavour.name === name))
+const unknown = wanted.filter((name) => !RUNS.some((run) => run.name === name))
 if (unknown.length > 0) {
-	const known = LAYOUT_FLAVOURS.map((flavour) => flavour.name).join(', ')
+	const known = RUNS.map((run) => run.name).join(', ')
 	console.error(`Unknown layout flavour: ${unknown.join(', ')}. Known: ${known}.`)
 	process.exit(1)
 }
-const flavours = LAYOUT_FLAVOURS.filter(
-	(flavour) => wanted.length === 0 || wanted.includes(flavour.name),
-)
+const runs = RUNS.filter((run) => wanted.length === 0 || wanted.includes(run.name))
 
 mkdirSync(SNAPSHOT_DIR, { recursive: true })
 const cards = []
-for (const flavour of flavours) {
-	const run = await runScene(flavour, SCENE)
-	const card = scoreRun(run, SCENE)
+for (const { name, flavour, scene, summary } of runs) {
+	const run = await runScene(flavour, scene, name)
+	const card = scoreRun(run, scene)
 	cards.push(card)
-	const file = join(SNAPSHOT_DIR, `${flavour.name}.tldr`)
+	const file = join(SNAPSHOT_DIR, `${name}.tldr`)
 	writeFileSync(file, run.snapshot)
-	console.log(`\n=== Layout flavour "${flavour.name}": ${flavour.summary}\n`)
+	console.log(`\n=== Layout flavour "${name}": ${summary}\n`)
 	console.log(formatScorecard(card))
 	console.log(`\nFinal canvas: ${relative(process.cwd(), file)}`)
-	console.log(`  open with pnpm dev, then ${CANVAS_URL}/?snapshot=bench/${flavour.name}.tldr`)
+	// A "+" in a query string reads as a space.
+	console.log(
+		`  open with pnpm dev, then ${CANVAS_URL}/?snapshot=bench/${encodeURIComponent(name)}.tldr`,
+	)
 }
 if (cards.length > 1) {
 	console.log('\n=== All flavours (aggregates)\n')

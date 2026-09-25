@@ -2,6 +2,7 @@ import { bringIntoView, questionCardId, showQuestion } from '../ask/showQuestion
 import { layoutGraph } from '../graph/layout'
 import { moveIntoFreeSpace, placeInFreeSpace } from '../graph/placeInFreeSpace'
 import { renderGraph } from '../graph/renderGraph'
+import { tidyGraph } from '../graph/tidyGraph'
 import { createCommandHandlers } from './commandHandlers'
 import type { LayoutFlavour } from './layoutFlavours'
 
@@ -10,7 +11,8 @@ import type { LayoutFlavour } from './layoutFlavours'
  * §12): the baseline's handlers, except that `graph.render` never moves a node
  * it placed before and puts new ones in free space beside their blockers, and
  * a new question card keeps clear of the user's shapes, so it takes over none
- * of their notes' anchors (ADR 0008).
+ * of their notes' anchors (ADR 0008). A render with `tidy` lays the whole
+ * graph out afresh, once, and moves the notes on a node with it (issue #29).
  */
 export const USER_OWNED_FLAVOUR: LayoutFlavour = {
 	name: 'user-owned',
@@ -21,7 +23,11 @@ export const USER_OWNED_FLAVOUR: LayoutFlavour = {
 		return {
 			...createCommandHandlers(editor, deps),
 			'graph.render': (payload) =>
-				asClaude(() => renderGraph(editor, payload, layoutGraph, placeInFreeSpace)),
+				asClaude(() =>
+					payload.tidy
+						? tidyGraph(editor, payload)
+						: renderGraph(editor, payload, layoutGraph, placeInFreeSpace),
+				),
 			'ask.show': (payload) =>
 				asClaude(() => {
 					const result = showQuestion(editor, payload)

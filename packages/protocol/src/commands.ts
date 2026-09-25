@@ -51,6 +51,13 @@ export const canvasCommands = {
 			 * undo step: the graph, with the answer as a node's note, replaces it.
 			 */
 			collapseQuestion: AskIdSchema.optional(),
+			/**
+			 * Lay the whole graph out afresh this once, where it is (issue #29):
+			 * layout flavour F2 then moves every node, and the user's notes
+			 * anchored to a node with it. Flavours that lay the whole graph out
+			 * on every render (the baseline, F1) render as they always do.
+			 */
+			tidy: z.boolean().optional(),
 		}),
 		result: z.object({
 			nodes: renderCounts,

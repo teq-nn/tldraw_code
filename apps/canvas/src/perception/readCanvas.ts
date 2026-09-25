@@ -230,6 +230,18 @@ const ANCHOR_ROLES: ReadonlySet<string> = new Set([
 ])
 
 /**
+ * The Claude shape a user shape annotates, as `read_canvas` reports it
+ * (ADR 0008); with `bounds`, the one it would annotate there.
+ */
+export function anchorOf(
+	editor: Editor,
+	shape: TLShape,
+	bounds = editor.getShapePageBounds(shape.id),
+): ShapeAnchor | undefined {
+	return bounds && findAnchor(editor, shape, bounds)
+}
+
+/**
  * The decision node, question card, diagram node, diagram frame or prototype
  * frame a user shape annotates: one it overlaps (the smallest, being the most specific, so
  * a node wins over its frame), else the nearest within {@link ANCHOR_REACH}.

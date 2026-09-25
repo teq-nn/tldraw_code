@@ -127,12 +127,13 @@ export function createMcpServer(bridge: CanvasBridge, options: McpServerOptions 
 	let lastMap: Awaited<ReturnType<typeof resolveMapTarget>> | undefined
 
 	/** Draw a validated graph; collapses the answered question card with it (ADR 0010). */
-	const renderGraph = async (graph: FrontierGraph, frontier: string[]) => {
+	const renderGraph = async (graph: FrontierGraph, frontier: string[], tidy = false) => {
 		const collapseQuestion = asks.answeredQuestion()
 		const result = await bridge.request('graph.render', {
 			...graph,
 			frontier,
 			...(collapseQuestion ? { collapseQuestion } : {}),
+			...(tidy ? { tidy } : {}),
 		})
 		// Collapsed now, or already gone (replaced or deleted by the user): either way done.
 		if (collapseQuestion) asks.forgetAnsweredQuestion(collapseQuestion)
@@ -177,15 +178,26 @@ export function createMcpServer(bridge: CanvasBridge, options: McpServerOptions 
 				'new ones added, and ones missing from this call removed. If you have received the answer to ' +
 				'the question card on the canvas, the card is removed: put the answer into the note of the ' +
 				'decision node it settled.',
-			inputSchema: FrontierGraphShape,
+			inputSchema: {
+				...FrontierGraphShape,
+				tidy: z
+					.boolean()
+					.optional()
+					.describe(
+						'Tidy the graph: lay it out afresh this once, where it is. Where drawn nodes keep their place ' +
+							"(the canvas's user-owned layout), every node moves and the user's notes on a node move " +
+							'with it; elsewhere the graph is laid out afresh on every render anyway. Only when the ' +
+							'user asked for or agreed to a tidy.',
+					),
+			},
 		},
-		async (args) =>
+		async ({ tidy, ...args }) =>
 			withActivity(async () => {
 				const parsed = FrontierGraphSchema.safeParse(args)
 				if (!parsed.success) throw new ToolInputError('invalid_graph', describeIssues(parsed.error))
 				const graph = parsed.data
 				const frontier = computeFrontier(graph)
-				const result = await renderGraph(graph, frontier)
+				const result = await renderGraph(graph, frontier, tidy)
 				return [
 					describeRender(graph.nodes.length, graph.edges.length, result),
 					`Frontier: ${frontier.length > 0 ? frontier.join(', ') : '(empty)'}.`,

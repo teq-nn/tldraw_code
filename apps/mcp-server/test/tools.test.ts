@@ -201,6 +201,18 @@ describe('render_graph', () => {
 		expect(textOf(result)).toContain('Frontier: b.')
 	})
 
+	it('asks the canvas for a tidy only when told to', async () => {
+		const canvas = await connectCanvas()
+		answerRender(canvas)
+
+		await renderGraph(graph)
+		const result = await renderGraph({ ...graph, tidy: true })
+
+		expect(result.isError).toBeFalsy()
+		expect(canvas.commands[0]?.payload).not.toHaveProperty('tidy')
+		expect(canvas.commands[1]).toMatchObject({ name: 'graph.render', payload: { tidy: true } })
+	})
+
 	it('treats a missing edge list as no edges', async () => {
 		const canvas = await connectCanvas()
 		answerRender(canvas)

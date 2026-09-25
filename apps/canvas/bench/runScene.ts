@@ -38,6 +38,7 @@ export interface StepRecord {
 }
 
 export interface SceneRun {
+	/** The run's name: its flavour's, or a variant's such as `user-owned+tidy`. */
 	flavour: string
 	steps: StepRecord[]
 	/** The final canvas as a `.tldr` file. */
@@ -48,8 +49,13 @@ export interface SceneRun {
  * Replay the scene against a headless editor running the flavour's command
  * handlers, as the canvas app wires them (question cards watched for note
  * answers, collapsed content hidden), and record the canvas after every step.
+ * The run goes by `name`, the flavour's own by default.
  */
-export async function runScene(flavour: LayoutFlavour, scene: Scene): Promise<SceneRun> {
+export async function runScene(
+	flavour: LayoutFlavour,
+	scene: Scene,
+	name = flavour.name,
+): Promise<SceneRun> {
 	const editor = createTestEditor({ getShapeVisibility: hideCollapsedContent })
 	editor.updateViewportScreenBounds(SCREEN)
 	const handlers = flavour.createHandlers(editor, {
@@ -98,7 +104,7 @@ export async function runScene(flavour: LayoutFlavour, scene: Scene): Promise<Sc
 				...(content && subject ? { focus: { content, subject } } : {}),
 			})
 		}
-		return { flavour: flavour.name, steps, snapshot: await serializeTldrawJson(editor) }
+		return { flavour: name, steps, snapshot: await serializeTldrawJson(editor) }
 	} finally {
 		stopWatching()
 		editor.dispose()

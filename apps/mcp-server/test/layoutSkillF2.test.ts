@@ -13,14 +13,18 @@ const repoRoot = fileURLToPath(new URL('../../../', import.meta.url))
 const path = `${repoRoot}.agents/skills/canvas-layout-f2/SKILL.md`
 const text = readFileSync(path, 'utf8')
 
-async function toolNames(): Promise<string[]> {
+async function listTools() {
 	const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
 	await createMcpServer(new CanvasBridge({ port: 0 })).connect(serverTransport)
 	const client = new Client({ name: 'test', version: '0.0.0' })
 	await client.connect(clientTransport)
 	const { tools } = await client.listTools()
 	await client.close()
-	return tools.map((tool) => tool.name)
+	return tools
+}
+
+async function toolNames(): Promise<string[]> {
+	return (await listTools()).map((tool) => tool.name)
 }
 
 describe('canvas-layout skill, F2 variant', () => {
@@ -45,5 +49,15 @@ describe('canvas-layout skill, F2 variant', () => {
 		expect(called).toContain('render_graph')
 		expect(called).toContain('read_canvas')
 		for (const name of called) expect(offered).toContain(name)
+	})
+
+	it('runs a tidy with the option render_graph offers, and says when to offer one', async () => {
+		const renderGraph = (await listTools()).find((tool) => tool.name === 'render_graph')
+		expect(Object.keys(renderGraph?.inputSchema.properties ?? {})).toContain('tidy')
+		const tidy = text.slice(text.indexOf('## Tidy'))
+		expect(tidy).toContain('`tidy: true`')
+		expect(tidy).toMatch(/\*\*Run one\*\* when the user asks/)
+		expect(tidy).toMatch(/\*\*Offer one\*\* when/)
+		expect(tidy).not.toMatch(/#29|not available/)
 	})
 })

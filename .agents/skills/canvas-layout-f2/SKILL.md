@@ -27,14 +27,12 @@ Call `read_canvas` and look at the screenshot. Done when you have checked that:
 - nothing you drew covers a user note, drawing or another shape of yours;
 - every user note still lies on or next to the node it was about.
 
-When one of these fails, say what you see in one terminal line, and consider a tidy.
+When one of these fails, say what you see in one terminal line; whether to offer a tidy is below.
 
 ## Tidy
 
-A tidy lays the whole graph out afresh, once: crossings go away, and every node moves. It is the user's call, never yours alone.
+A tidy lays the whole graph out afresh, once, where it is: it untangles crossings, every node moves, and each user note on or beside a node moves with it, so it stays on its node. It is the user's call, never yours alone.
 
-- **Offer one** when the screenshot shows the graph drifting: edges crossing or running right to left, new nodes far from their blockers, or the graph hard to follow. Offer with `ask` ("Tidy the graph? Every node moves.", options "Tidy it" and "Leave it"), at most once until the graph drifts further.
-- **Run one** when the user asks for it, in a sticky note ("tidy up") or an answer.
-- A declined tidy stays declined: keep rendering in place.
-
-Running the tidy needs a tidy option on `render_graph`, which this candidate does not have yet (issue #29). Until it has, tell the user in one terminal line that the tidy is not available, and keep the graph as it is.
+- **Run one** when the user asks for it, in a sticky note ("tidy up") or an answer: call `render_graph` with the whole graph and `tidy: true`, then check it as after every render.
+- **Offer one** when the check after a render finds drift past the threshold: two or more edge crossings, any edge running right to left, a node of yours over another shape, or a new node placed away from its blockers. Offer with `ask` ("Tidy the graph? Every node moves.", options "Tidy it" and "Leave it"), at most once until the graph drifts further.
+- A tidy is one call: every later render leaves `tidy` out and places in free space again. A declined tidy stays declined: keep rendering in place.
