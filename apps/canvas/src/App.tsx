@@ -20,11 +20,11 @@ const shapeUtils = [
  */
 export function App() {
 	const [editor, setEditor] = useState<Editor>()
-	const status = useCanvasBridge(editor)
+	const { status, working } = useCanvasBridge(editor)
 
 	const components = useMemo<TLComponents>(
-		() => ({ TopPanel: () => <BridgeStatusPill status={status} /> }),
-		[status],
+		() => ({ TopPanel: () => <BridgeStatusPill status={status} working={working} /> }),
+		[status, working],
 	)
 
 	return (

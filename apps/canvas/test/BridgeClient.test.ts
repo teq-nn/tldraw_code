@@ -3,6 +3,7 @@ import {
 	type Envelope,
 	encodeEnvelope,
 	makeCommand,
+	makeEvent,
 	parseEnvelope,
 	type ResultEnvelope,
 } from '@tldraw-code/protocol'
@@ -34,7 +35,11 @@ function send(socket: ServerSocket, command: CommandEnvelope): Promise<ResultEnv
 	})
 }
 
-function startClient(handlers?: Partial<CommandHandlers>, statuses: BridgeStatus[] = []) {
+function startClient(
+	handlers?: Partial<CommandHandlers>,
+	statuses: BridgeStatus[] = [],
+	onAgentWorking?: (working: boolean) => void,
+) {
 	client = new BridgeClient({
 		url,
 		handlers: {
@@ -61,6 +66,7 @@ function startClient(handlers?: Partial<CommandHandlers>, statuses: BridgeStatus
 			...handlers,
 		},
 		onStatusChange: (s) => statuses.push(s),
+		onAgentWorking,
 		reconnectDelayMs: 10,
 	})
 	client.start()
@@ -170,5 +176,16 @@ describe('BridgeClient', () => {
 		await expect
 			.poll(() => received)
 			.toContainEqual({ v: 1, kind: 'event', name: 'ask.answered', payload: answer })
+	})
+
+	it("reports the server's agent.working events, and ignores malformed ones", async () => {
+		const flags: boolean[] = []
+		const connection = nextConnection()
+		startClient({}, [], (working) => flags.push(working))
+		const socket = await connection
+		socket.send(encodeEnvelope(makeEvent('agent.working', { working: true })))
+		socket.send(encodeEnvelope(makeEvent('agent.working', { working: 'yes' })))
+		socket.send(encodeEnvelope(makeEvent('agent.working', { working: false })))
+		await expect.poll(() => flags).toEqual([true, false])
 	})
 })

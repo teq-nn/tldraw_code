@@ -13,6 +13,7 @@ import {
 	makeEvent,
 	makeOkResult,
 	parseEnvelope,
+	serverEvents,
 } from '@tldraw-code/protocol'
 
 export type BridgeStatus = 'connecting' | 'connected' | 'disconnected'
@@ -28,6 +29,8 @@ export interface BridgeClientOptions {
 	url: string
 	handlers: CommandHandlers
 	onStatusChange?: (status: BridgeStatus) => void
+	/** The server says Claude started or stopped working on a channel push (ADR 0025). */
+	onAgentWorking?: (working: boolean) => void
 	/** Injectable for tests; defaults to the global WebSocket. */
 	WebSocketImpl?: typeof WebSocket
 	/** First reconnect delay; doubles up to {@link maxReconnectDelayMs}. */
@@ -123,9 +126,23 @@ export class BridgeClient {
 			console.warn('[bridge] dropping frame:', parsed.error)
 			return
 		}
+		if (parsed.envelope.kind === 'event') {
+			this.handleEvent(parsed.envelope.name, parsed.envelope.payload)
+			return
+		}
 		if (parsed.envelope.kind !== 'command') return
 		const reply = await this.execute(parsed.envelope)
 		if (socket.readyState === socket.OPEN) socket.send(encodeEnvelope(reply))
+	}
+
+	private handleEvent(name: string, payload: unknown): void {
+		if (name !== 'agent.working') return
+		const parsed = serverEvents['agent.working'].safeParse(payload)
+		if (!parsed.success) {
+			console.warn('[bridge] dropping malformed agent.working event:', parsed.error.message)
+			return
+		}
+		this.options.onAgentWorking?.(parsed.data.working)
 	}
 
 	private async execute(command: CommandEnvelope) {

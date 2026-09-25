@@ -257,6 +257,20 @@ export const canvasEvents = {
 export type CanvasEventName = keyof typeof canvasEvents
 export type CanvasEventPayload<N extends CanvasEventName> = z.infer<(typeof canvasEvents)[N]>
 
+/** Catalog of events the server sends to the canvas without being asked. */
+export const serverEvents = {
+	/**
+	 * Claude is (or is no longer) working on a channel push (ADR 0025), so the
+	 * canvas can show it. The server owns the state; the canvas only displays it.
+	 */
+	'agent.working': z.object({
+		working: z.boolean(),
+	}),
+} as const
+
+export type ServerEventName = keyof typeof serverEvents
+export type ServerEventPayload<N extends ServerEventName> = z.infer<(typeof serverEvents)[N]>
+
 /** Error codes that can appear in a failed result or a tool error. */
 export const BridgeErrorCode = {
 	/** No canvas tab is connected to the bridge. */

@@ -83,6 +83,8 @@ export interface McpServerOptions {
 	ask?: Partial<AskTimings>
 	/** Time source of `ask`'s timeout and heartbeat; real timers by default (tests pass a manual clock). */
 	clock?: AskClock
+	/** How long the canvas shows Claude as working after a channel push when it makes no canvas call (ADR 0025). */
+	workingTimeoutMs?: number
 	/** Diagnostic logger; must not write to stdout. */
 	log?: (message: string) => void
 	/** Where `sync_wayfinder_map` reads tickets (ADR 0012); GitHub Issues of the current repo by default. */
@@ -102,7 +104,7 @@ export function createMcpServer(bridge: CanvasBridge, options: McpServerOptions 
 				method: CHANNEL_NOTIFICATION,
 				params: { content, meta },
 			} as unknown as ServerNotification),
-		options.log,
+		{ clock: options.clock, workingTimeoutMs: options.workingTimeoutMs, log: options.log },
 	)
 	/** Tool result that ends with the canvas activity digest (ADR 0009). */
 	const withActivity = (run: () => Promise<string>) =>

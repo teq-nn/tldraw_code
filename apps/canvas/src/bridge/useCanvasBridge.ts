@@ -10,9 +10,16 @@ import { createCommandHandlers } from './commandHandlers'
 export const BRIDGE_URL: string =
 	import.meta.env.VITE_CANVAS_BRIDGE_URL ?? `ws://127.0.0.1:${DEFAULT_BRIDGE_PORT}`
 
+export interface CanvasBridgeState {
+	status: BridgeStatus
+	/** Claude is working on a channel push (ADR 0025); the server owns this state. */
+	working: boolean
+}
+
 /** Connect the given editor to the MCP server's bridge for as long as the component is mounted. */
-export function useCanvasBridge(editor: Editor | undefined): BridgeStatus {
+export function useCanvasBridge(editor: Editor | undefined): CanvasBridgeState {
 	const [status, setStatus] = useState<BridgeStatus>('disconnected')
+	const [working, setWorking] = useState(false)
 
 	useEffect(() => {
 		if (!editor) return
@@ -22,6 +29,8 @@ export function useCanvasBridge(editor: Editor | undefined): BridgeStatus {
 			handlers: createCommandHandlers(editor, { activity }),
 			onStatusChange: (next) => {
 				setStatus(next)
+				// The server re-sends the flag when it hears our hello; until then, nothing is known.
+				if (next !== 'connected') setWorking(false)
 				// Answers given while disconnected (or before a tab reload) reach the server now;
 				// it ignores answers to questions it no longer waits for.
 				if (next === 'connected') {
@@ -30,6 +39,7 @@ export function useCanvasBridge(editor: Editor | undefined): BridgeStatus {
 					}
 				}
 			},
+			onAgentWorking: setWorking,
 		})
 		const stopWatching = watchQuestionCards(editor, (askId, answer) =>
 			client.sendEvent('ask.answered', { askId, answer }),
@@ -47,5 +57,5 @@ export function useCanvasBridge(editor: Editor | undefined): BridgeStatus {
 		}
 	}, [editor])
 
-	return status
+	return { status, working }
 }

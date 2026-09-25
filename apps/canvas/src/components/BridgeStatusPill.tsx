@@ -6,11 +6,36 @@ const LABELS: Record<BridgeStatus, string> = {
 	disconnected: 'MCP server not running',
 }
 
-export function BridgeStatusPill({ status }: { status: BridgeStatus }) {
+const WORKING_LABEL = 'Claude is working…'
+
+/**
+ * `working` (ADR 0025): Claude got a channel push and has not yet reacted.
+ * Only shown while connected, since a dead bridge cannot say Claude is busy.
+ */
+export function BridgeStatusPill({
+	status,
+	working = false,
+}: {
+	status: BridgeStatus
+	working?: boolean
+}) {
+	const busy = working && status === 'connected'
 	return (
-		<div className="bridge-status" data-status={status} data-testid="bridge-status">
+		<div
+			className="bridge-status"
+			data-status={status}
+			data-working={busy}
+			data-testid="bridge-status"
+		>
 			<span className="bridge-status__dot" />
-			{LABELS[status]}
+			{busy ? WORKING_LABEL : LABELS[status]}
+			{busy && (
+				<span className="bridge-status__typing" aria-hidden="true">
+					<span className="bridge-status__typing-dot" />
+					<span className="bridge-status__typing-dot" />
+					<span className="bridge-status__typing-dot" />
+				</span>
+			)}
 		</div>
 	)
 }

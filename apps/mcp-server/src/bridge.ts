@@ -10,7 +10,10 @@ import {
 	type EventEnvelope,
 	encodeEnvelope,
 	makeCommand,
+	makeEvent,
 	parseEnvelope,
+	type ServerEventName,
+	type ServerEventPayload,
 } from '@tldraw-code/protocol'
 import { type WebSocket, WebSocketServer } from 'ws'
 
@@ -111,6 +114,18 @@ export class CanvasBridge {
 	onEvent(listener: (event: EventEnvelope) => void): () => void {
 		this.eventListeners.add(listener)
 		return () => this.eventListeners.delete(listener)
+	}
+
+	/**
+	 * Send an unsolicited event to the connected canvas. Returns false, dropping
+	 * the event, when no canvas is connected; callers re-send what matters when
+	 * a canvas connects (its `hello` event).
+	 */
+	sendEvent<N extends ServerEventName>(name: N, payload: ServerEventPayload<N>): boolean {
+		const canvas = this.canvas
+		if (!canvas) return false
+		canvas.send(encodeEnvelope(makeEvent(name, payload)))
+		return true
 	}
 
 	/**

@@ -2,6 +2,7 @@ import {
 	type CanvasActivity,
 	type CommandEnvelope,
 	type Envelope,
+	type EventEnvelope,
 	encodeEnvelope,
 	makeErrorResult,
 	makeEvent,
@@ -20,6 +21,8 @@ type Handler = (command: CommandEnvelope) => Envelope | undefined
  */
 export class FakeCanvas {
 	readonly commands: CommandEnvelope[] = []
+	/** Events the server sent to the canvas, in order. */
+	readonly events: EventEnvelope[] = []
 	/** What the user "did" since the last read; reported to every activity query. */
 	activity: CanvasActivity = { added: {}, changed: 0, removed: 0 }
 	activityQueries = 0
@@ -28,6 +31,7 @@ export class FakeCanvas {
 	private constructor(private readonly socket: WebSocket) {
 		socket.on('message', (data) => {
 			const parsed = parseEnvelope(data.toString())
+			if (parsed.ok && parsed.envelope.kind === 'event') this.events.push(parsed.envelope)
 			if (!parsed.ok || parsed.envelope.kind !== 'command') return
 			if (parsed.envelope.name === 'canvas.activity') {
 				this.activityQueries++

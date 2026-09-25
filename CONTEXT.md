@@ -180,6 +180,10 @@ _Avoid_: markup, feedback shape
 What the user added, changed or deleted since Claude's last canvas read. Reported as one line at the end of every canvas tool result, so Claude knows when to read again (ADR 0009), and pushed into the session as a channel message when the user pauses after addressing Claude with the `&agent` tag in a sticky note (ADR 0024).
 _Avoid_: diff, changelog
 
+**Working indicator**:
+The three animated dots and "Claude is working…" label on the bridge status pill, shown from the moment a channel push went out until Claude's next canvas tool call has delivered its result, or a 60 s timeout. The MCP server owns this state and sends it to the canvas as `agent.working` (ADR 0025).
+_Avoid_: typing indicator, spinner
+
 ### Prototypes
 
 **Prototype**:
