@@ -3,6 +3,7 @@ import { showQuestion } from '../ask/showQuestion'
 import { settleComparison } from '../comparison/settleComparison'
 import { renderDiagrams } from '../diagram/renderDiagrams'
 import { renderGraph } from '../graph/renderGraph'
+import { renderNote } from '../note/renderNote'
 import type { ActivityTracker } from '../perception/activity'
 import { readCanvas } from '../perception/readCanvas'
 import { type CaptureScreenshot, captureScreenshot } from '../perception/screenshot'
@@ -49,6 +50,7 @@ export function createCommandHandlers(
 		'graph.render': (payload) => asClaude(() => renderGraph(editor, payload)),
 		'diagram.render': (payload) => asClaude(() => renderDiagrams(editor, payload)),
 		'ask.show': (payload) => asClaude(() => showQuestion(editor, payload)),
+		'note.render': (payload) => asClaude(() => renderNote(editor, payload)),
 		'prototype.render': (payload) => asClaude(() => renderPrototype(editor, payload)),
 		'comparison.settle': (payload) => asClaude(() => settleComparison(editor, payload)),
 		'canvas.read': (payload) => readCanvas(editor, payload, { capture, activity }),

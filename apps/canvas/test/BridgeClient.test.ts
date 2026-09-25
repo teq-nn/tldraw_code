@@ -56,6 +56,9 @@ function startClient(
 			'comparison.settle': () => {
 				throw new Error('not used in these tests')
 			},
+			'note.render': () => {
+				throw new Error('not used in these tests')
+			},
 			'prototype.render': () => {
 				throw new Error('not used in these tests')
 			},

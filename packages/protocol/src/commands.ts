@@ -10,6 +10,7 @@ import {
 import { SettleComparisonShape } from './compare'
 import { DiagramEdgeSchema, DiagramIdSchema, DiagramNodeSchema, MAX_COMPARE_ITEMS } from './diagram'
 import { DecisionNodeSchema, DependencyEdgeSchema } from './graph'
+import { NoteIdSchema, RenderNoteShape } from './note'
 import { PrototypeIdSchema, RenderPrototypeShape } from './prototype'
 
 const renderCounts = z.object({
@@ -185,6 +186,25 @@ export const canvasCommands = {
 			rejectedFrameIds: z.array(z.string()),
 			/** Shape id of the arrow from the decision node, or null when the node is not on the canvas. */
 			pinId: z.string().nullable(),
+		}),
+	},
+	/**
+	 * Put Claude's note on the canvas (ADR 0026), right next to `replyTo` or to
+	 * the right of everything. Keyed by `id` when given: a repeated call updates
+	 * that note in place. Not user activity.
+	 */
+	'note.render': {
+		payload: z.object({
+			text: RenderNoteShape.text,
+			replyTo: RenderNoteShape.replyTo,
+			id: NoteIdSchema.optional(),
+		}),
+		result: z.object({
+			shapeId: z.string(),
+			/** False when an existing note with this id was updated. */
+			created: z.boolean(),
+			/** Shape id of the note it was placed next to, when `replyTo` was given. */
+			replyToShapeId: z.string().optional(),
 		}),
 	},
 	/**

@@ -94,11 +94,11 @@ export class ActivityTracker {
 		this.handled = this.invocations()
 	}
 
-	/** The sticky notes addressed to Claude, with their text. */
+	/** The user's sticky notes addressed to Claude, with their text (Claude's own notes never count). */
 	private invocations(): Map<TLShapeId, string> {
 		const notes = new Map<TLShapeId, string>()
 		for (const shape of this.editor.getCurrentPageShapes()) {
-			if (shape.type !== 'note') continue
+			if (shape.type !== 'note' || roleOf(shape) !== 'sticky_note') continue
 			const text = renderPlaintextFromRichText(this.editor, (shape as TLNoteShape).props.richText)
 			if (mentionsAgent(text)) notes.set(shape.id, text)
 		}

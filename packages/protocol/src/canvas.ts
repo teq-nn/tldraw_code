@@ -42,6 +42,7 @@ export const ShapeRoleSchema = z.enum([
 	'diagram_edge',
 	'prototype_frame',
 	'choice_pin',
+	'agent_note',
 	'sticky_note',
 	'drawing',
 	'text',

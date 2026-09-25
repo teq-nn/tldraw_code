@@ -184,6 +184,10 @@ _Avoid_: diff, changelog
 The three animated dots and "Claude is working…" label on the bridge status pill, shown from the moment a channel push went out until Claude Code's `Stop` hook reports the end of its turn, or after 120 s without a sign of life. The MCP server owns this state and sends it to the canvas as `agent.working` (ADR 0025).
 _Avoid_: typing indicator, spinner
 
+**Agent note**:
+A short reply Claude puts on the canvas with `render_note`, next to the shape it answers (`replyTo`) or right of the content. A tldraw note that looks unlike the user's sticky (violet, sans-serif, labelled "Claude"), with role `agent_note`, listed under "Your shapes". Never user activity and never an `&agent` invocation, even if its text contains the tag; keyed by an optional id, rendering again updates it in place (ADR 0026).
+_Avoid_: reply sticky, bot note
+
 ### Prototypes
 
 **Prototype**:

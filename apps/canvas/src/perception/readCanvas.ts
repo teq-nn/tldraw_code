@@ -21,6 +21,7 @@ import { answerOf, NOTE_REACH } from '../ask/watchQuestionCards'
 import { choiceOf, prototypeComparisonOf } from '../comparison/comparisonFrames'
 import { diagramMeta } from '../diagram/renderDiagrams'
 import { graphMeta, STATUS_COLOR } from '../graph/renderGraph'
+import { AGENT_NOTE_LABEL, agentNoteMeta } from '../note/renderNote'
 import {
 	isPrototypeFrame,
 	PROTOTYPE_HEADER_HEIGHT,
@@ -193,8 +194,11 @@ function textOf(editor: Editor, shape: TLShape): string | undefined {
 	if (isQuestionCard(shape)) text = shape.props.question
 	else if (isPrototypeFrame(shape)) {
 		text = [shape.props.label, shape.props.caption].filter(Boolean).join('\n')
-	} else if (props.richText) text = renderPlaintextFromRichText(editor, props.richText)
-	else if (typeof props.name === 'string') text = props.name
+	} else if (props.richText) {
+		text = renderPlaintextFromRichText(editor, props.richText)
+		// Claude's note starts with its "Claude" label (ADR 0026); the note's text is the rest.
+		if (agentNoteMeta(shape.meta)) text = text.replace(new RegExp(`^${AGENT_NOTE_LABEL}\\n?`), '')
+	} else if (typeof props.name === 'string') text = props.name
 	text = text?.trim()
 	if (!text) return undefined
 	return text.length > MAX_TEXT_LENGTH ? `${text.slice(0, MAX_TEXT_LENGTH)}…` : text

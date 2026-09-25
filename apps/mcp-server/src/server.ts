@@ -27,6 +27,8 @@ import {
 	QuestionShape,
 	RenderDiagramSchema,
 	RenderDiagramShape,
+	RenderNoteSchema,
+	RenderNoteShape,
 	RenderPrototypeSchema,
 	RenderPrototypeShape,
 	SettleComparisonSchema,
@@ -66,7 +68,8 @@ export const SERVER_INSTRUCTIONS =
 	'Call read_canvas (shape data plus a screenshot) before each new question, before interpreting an ' +
 	'answer that refers to the canvas (e.g. a sticky-note answer), and whenever a tool result reports ' +
 	'canvas activity, or when a <channel source="tldraw-canvas"> message says the user addressed you with ' +
-	'&agent in a sticky note (they are waiting for you: read the canvas and answer that note first). ' +
+	'&agent in a sticky note (they are waiting for you: read the canvas and answer that note first, ' +
+	'on the canvas with render_note (replyTo the sticky note), not only in the terminal). ' +
 	'Sticky notes without &agent do not wake you; they show up when you read. ' +
 	'Treat a sticky note or drawing next to or on a question card or decision node as ' +
 	"the user's comment on it; one on a prototype is feedback on that prototype. " +
@@ -303,6 +306,33 @@ export function createMcpServer(bridge: CanvasBridge, options: McpServerOptions 
 					`Rendered diagram "${id}" in frame ${result.frameIds[0]}: ` +
 					describeCounts(spec.nodes.length, spec.edges.length, result)
 				)
+			}),
+	)
+
+	server.registerTool(
+		'render_note',
+		{
+			title: 'Put a note on the canvas',
+			description:
+				"Answer on the canvas with a short note (at most 500 characters) that looks unlike the user's " +
+				'sticky notes: violet, sans-serif, labelled "Claude". Use it to reply to a sticky note that ' +
+				'addressed you with &agent: pass its shape id (from read_canvas) as replyTo and the note is ' +
+				'placed right next to it. Without replyTo it goes to the right of everything on the canvas. ' +
+				'Rendering again with the same id updates that note in place. Your notes are listed under ' +
+				'"Your shapes" by read_canvas and never wake you, even if their text contains &agent.',
+			inputSchema: RenderNoteShape,
+		},
+		async (args) =>
+			withActivity(async () => {
+				const parsed = RenderNoteSchema.safeParse(args)
+				if (!parsed.success) throw new ToolInputError('invalid_note', describeIssues(parsed.error))
+				const result = await bridge.request('note.render', parsed.data)
+				const where = result.replyToShapeId
+					? `next to ${result.replyToShapeId}`
+					: 'to the right of the canvas content'
+				return result.created
+					? `Put note ${result.shapeId} ${where}.`
+					: `Updated note ${result.shapeId} in place.`
 			}),
 	)
 
