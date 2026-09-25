@@ -5,6 +5,7 @@ import {
 	type Editor,
 	type TLAnyShapeUtilConstructor,
 	type TLComponents,
+	type TLShapeId,
 	Tldraw,
 	useEditor,
 	useValue,
@@ -24,7 +25,11 @@ import {
  * is a read-only canvas showing that run's snapshot after the current step,
  * with what the step changed drawn over it. Run `pnpm bench:layout` first.
  *
- * Keys: ←/→ step, 1–9 jump to a step, hold Space to see the step before,
+ * Each step zooms to what it is about, and nodes the step moved glide from
+ * their old place to their new one, so a re-layout shows as motion.
+ *
+ * Keys: ←/→ step, 1–9 jump to a step, R replays the motion, hold Space to
+ * see the step before, Z switches between close-up and the whole canvas,
  * H hides the highlights, F fits every panel, Esc leaves a single panel.
  */
 export function LayoutDemo({ shapeUtils }: { shapeUtils: TLAnyShapeUtilConstructor[] }) {
@@ -38,6 +43,8 @@ export function LayoutDemo({ shapeUtils }: { shapeUtils: TLAnyShapeUtilConstruct
 	const [highlights, setHighlights] = useState(true)
 	const [peek, setPeek] = useState(false)
 	const [fitRequest, setFitRequest] = useState(0)
+	const [replay, setReplay] = useState(0)
+	const [overview, setOverview] = useState(false)
 
 	useEffect(() => {
 		fetch(LAYOUT_DEMO_MANIFEST)
@@ -65,6 +72,8 @@ export function LayoutDemo({ shapeUtils }: { shapeUtils: TLAnyShapeUtilConstruct
 				setPeek(true)
 			} else if (event.key === 'h' || event.key === 'H') setHighlights((on) => !on)
 			else if (event.key === 'f' || event.key === 'F') setFitRequest((n) => n + 1)
+			else if (event.key === 'r' || event.key === 'R') setReplay((n) => n + 1)
+			else if (event.key === 'z' || event.key === 'Z') setOverview((on) => !on)
 			else if (event.key === 'Escape') setFocused(undefined)
 			else if (/^[1-9]$/.test(event.key) && Number(event.key) <= stepCount)
 				setStepIndex(Number(event.key) - 1)
@@ -133,8 +142,8 @@ export function LayoutDemo({ shapeUtils }: { shapeUtils: TLAnyShapeUtilConstruct
 					<span data-kind="anchor">anchor lost</span>
 					<span data-kind="user">user shape moved</span>
 					<span className="layout-demo__keys">
-						←/→ step · hold Space: step before · H highlights · F fit · scroll to zoom · click a
-						title to enlarge
+						←/→ step · R replay motion · hold Space: step before · Z close-up / whole canvas · H
+						highlights · click a name to enlarge
 					</span>
 				</div>
 			</header>
@@ -148,7 +157,9 @@ export function LayoutDemo({ shapeUtils }: { shapeUtils: TLAnyShapeUtilConstruct
 						highlights={highlights && !peek}
 						shapeUtils={shapeUtils}
 						fitRequest={fitRequest}
+						replay={replay}
 						focused={focused === run.name}
+						overview={overview}
 						onTitleClick={() => setFocused(focused ? undefined : run.name)}
 					/>
 				))}
@@ -164,6 +175,40 @@ function stepOf(run: LayoutDemoRun, stepName: string, stepNames: string[]) {
 		if (step) return { step, missing: index !== stepNames.indexOf(stepName) }
 	}
 	return undefined
+}
+
+/** How long a moved node takes to glide from its old place to its new one. */
+const GLIDE_MS = 900
+
+/**
+ * Put the moved nodes back where they were, then animate them to where the
+ * step put them. Returns a function that cancels a glide not yet started.
+ */
+function glide(editor: Editor, moves: LayoutDemoStep['highlights']['moved']): () => void {
+	const shapes = moves.flatMap((move) => {
+		const shape = editor.getShape(move.shapeId as TLShapeId)
+		return shape ? [{ shape, move }] : []
+	})
+	editor.updateShapes(
+		shapes.map(({ shape, move }) => ({
+			id: shape.id,
+			type: shape.type,
+			x: move.from.x,
+			y: move.from.y,
+		})),
+	)
+	const timer = setTimeout(() => {
+		editor.animateShapes(
+			shapes.map(({ shape, move }) => ({
+				id: shape.id,
+				type: shape.type,
+				x: move.to.x,
+				y: move.to.y,
+			})),
+			{ animation: { duration: GLIDE_MS } },
+		)
+	}, 300)
+	return () => clearTimeout(timer)
 }
 
 /** Zoom to a step's area: what it shows and what the step before showed. */
@@ -193,7 +238,9 @@ function RunPanel({
 	highlights,
 	shapeUtils,
 	fitRequest,
+	replay,
 	focused,
+	overview,
 	onTitleClick,
 }: {
 	run: LayoutDemoRun
@@ -202,31 +249,39 @@ function RunPanel({
 	highlights: boolean
 	shapeUtils: TLAnyShapeUtilConstructor[]
 	fitRequest: number
+	replay: number
 	focused: boolean
+	overview: boolean
 	onTitleClick(): void
 }) {
 	const [editor, setEditor] = useState<Editor>()
 	const [loadError, setLoadError] = useState<string>()
 	const found = stepOf(run, stepName, stepNames)
 	const url = found ? `bench/demo/${found.step.snapshot}` : undefined
-	const bounds = found?.step.bounds
+	const bounds = found && (overview ? found.step.overview : found.step.closeUp)
+	// Moved nodes glide from where they were, so a re-layout shows as motion; not while peeking back.
+	const moves = highlights && found && !found.missing ? found.step.highlights.moved : undefined
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: replay reloads the step to run its motion again
 	useEffect(() => {
 		if (!editor || !url) return
 		let current = true
+		let stopGlide: (() => void) | undefined
 		fetchSnapshot(url)
 			.then((json) => {
 				if (!current) return
 				openSnapshot(editor, json, { zoomToFit: false })
 				editor.updateInstanceState({ isReadonly: true })
 				if (bounds) fitTo(editor, bounds)
+				if (moves) stopGlide = glide(editor, moves)
 				setLoadError(undefined)
 			})
 			.catch((cause: unknown) => current && setLoadError(`Could not open ${url}: ${String(cause)}`))
 		return () => {
 			current = false
+			stopGlide?.()
 		}
-	}, [editor, url, bounds])
+	}, [editor, url, bounds, moves, replay])
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: refit on request and when the panel is enlarged
 	useEffect(() => {

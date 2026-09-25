@@ -25,12 +25,14 @@ export interface LayoutDemoStep {
 	name: string
 	/** The canvas after the step, relative to the manifest. */
 	snapshot: string
-	/** Page area of the step and the one before, so what moved stays in view. */
-	bounds: PageBox
+	/** Page area of what the step is about (the graph when it changed it), with where things were. */
+	closeUp: PageBox
+	/** Page area of everything on the canvas, now and the step before. */
+	overview: PageBox
 	stats: { label: string; value: string; bad?: boolean }[]
 	highlights: {
 		/** Decision nodes the step moved: where they were and where they are. */
-		moved: { label: string; from: PageBox; to: PageBox }[]
+		moved: { label: string; shapeId: string; from: PageBox; to: PageBox }[]
 		/** Decision nodes the step added. */
 		added: PageBox[]
 		/** Where two shapes overlap that should not. */

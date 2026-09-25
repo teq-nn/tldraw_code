@@ -13,7 +13,7 @@
  * Flavours are registered in `src/bridge/layoutFlavours.ts`. Next to them
  * runs `user-owned+tidy`: F2 on the scene with a tidy after step 7 (#29).
  */
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { JSDOM } from 'jsdom'
@@ -89,8 +89,8 @@ if (cards.length > 1) {
 	console.log('\n=== All flavours (aggregates)\n')
 	console.log(formatComparison(cards))
 }
+// Overwritten in place, not deleted first: a running dev server stops serving a public folder that is removed and recreated.
 const demoDir = join(SNAPSHOT_DIR, 'demo')
-rmSync(demoDir, { recursive: true, force: true })
 mkdirSync(demoDir, { recursive: true })
 writeLayoutDemo(demoDir, demoRuns)
 console.log(`\nStep-by-step demo of every run: pnpm dev, then ${CANVAS_URL}/?demo`)

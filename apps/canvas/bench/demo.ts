@@ -64,10 +64,16 @@ function demoStep(
 ): LayoutDemoStep {
 	const nodes = decisionNodes(step.shapes)
 	const before = previous ? decisionNodes(previous.shapes) : new Map<string, PageBox>()
+	const nodeShapeIds = new Map(
+		step.shapes.flatMap((shape) =>
+			shape.role === 'decision_node' && shape.decisionId ? [[shape.decisionId, shape.id]] : [],
+		),
+	)
 	const moved = [...nodes].flatMap(([id, to]) => {
 		const from = before.get(id)
+		const shapeId = nodeShapeIds.get(id)
 		const still = !from || (Math.abs(from.x - to.x) <= STILL && Math.abs(from.y - to.y) <= STILL)
-		return still ? [] : [{ label: id, from, to }]
+		return still || !shapeId ? [] : [{ label: id, shapeId, from, to }]
 	})
 	const added = previous ? [...nodes].filter(([id]) => !before.has(id)).map(([, box]) => box) : []
 	const byLabel = new Map(step.shapes.map((shape) => [labelOf(shape), shape.bounds]))
@@ -92,10 +98,17 @@ function demoStep(
 	})
 	const moves = previous ? displacement(before, nodes) : undefined
 	const shown = [...topLevel(step.shapes), ...topLevel(previous?.shapes ?? [])]
+	const overview = union(shown.map((shape) => shape.bounds)) ?? { x: 0, y: 0, w: 1, h: 1 }
+	const graphChanged = moved.length > 0 || added.length > 0
+	const closeUp = union([
+		...(graphChanged ? [...nodes.values(), ...before.values()] : []),
+		...(step.focus ? [step.focus.content, step.focus.subject] : []),
+	])
 	return {
 		name: step.name,
 		snapshot,
-		bounds: union(shown.map((shape) => shape.bounds)) ?? { x: 0, y: 0, w: 1, h: 1 },
+		closeUp: closeUp ?? overview,
+		overview,
 		stats: [
 			{ label: 'Nodes moved', value: String(moved.length), bad: moved.length > 0 },
 			{ label: 'Mean move', value: moves ? moves.mean.toFixed(0) : '-' },
