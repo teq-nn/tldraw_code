@@ -25,7 +25,7 @@ import { choicePinMeta, prototypeComparisonOf } from '../comparison/comparisonFr
 import { diagramMeta } from '../diagram/renderDiagrams'
 import { agentNoteMeta } from '../note/renderNote'
 import { PROTOTYPE_FRAME_TYPE } from '../prototype/PrototypeShapeUtil'
-import { layoutGraph } from './layout'
+import { type GraphLayout, layoutGraph } from './layout'
 
 type RenderPayload = CanvasCommandPayload<'graph.render'>
 type RenderResult = CanvasCommandResult<'graph.render'>
@@ -77,9 +77,14 @@ export function graphMeta(meta: unknown): GraphShapeMeta | undefined {
  * Draw the frontier graph as native tldraw shapes, or bring an earlier
  * rendering up to date. Shapes are keyed by node id / edge endpoints, so a
  * repeated call updates them in place, adds what is new and removes what is
- * gone; nothing is duplicated. All changes land in one undo step.
+ * gone; nothing is duplicated. All changes land in one undo step. `layOut`
+ * places the nodes; a layout flavour may bring its own (issue #27).
  */
-export function renderGraph(editor: Editor, payload: RenderPayload): RenderResult {
+export function renderGraph(
+	editor: Editor,
+	payload: RenderPayload,
+	layOut: GraphLayout = layoutGraph,
+): RenderResult {
 	const result: RenderResult = {
 		nodes: { created: 0, updated: 0, removed: 0 },
 		edges: { created: 0, updated: 0, removed: 0 },
@@ -149,7 +154,7 @@ export function renderGraph(editor: Editor, payload: RenderPayload): RenderResul
 			const bounds = editor.getShapePageBounds(nodeShapeId(node.id))
 			return { id: node.id, w: bounds?.w ?? NODE_WIDTH, h: bounds?.h ?? NODE_MIN_HEIGHT }
 		})
-		const layout = layoutGraph(sized, payload.edges)
+		const layout = layOut(sized, payload.edges)
 		const origin = clearOfPlaced(
 			editor,
 			clearOfRows(
