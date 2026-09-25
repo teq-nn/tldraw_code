@@ -17,6 +17,13 @@ const label = process.argv[2] ?? 'Hello from the smoke test'
 const transport = new StdioClientTransport({
 	command: process.execPath,
 	args: ['--import', 'tsx', 'apps/mcp-server/src/main.ts'],
+	// The SDK's default environment drops everything but HOME, PATH and the like;
+	// pass ours on, as Claude Code does, so CANVAS_BRIDGE_PORT and CANVAS_BACKEND apply.
+	env: Object.fromEntries(
+		Object.entries(process.env).filter(
+			(entry): entry is [string, string] => entry[1] !== undefined,
+		),
+	),
 	stderr: 'inherit',
 })
 const client = new Client({ name: 'smoke', version: '0.0.0' })

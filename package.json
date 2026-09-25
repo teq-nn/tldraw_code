@@ -11,6 +11,7 @@
 		"build:board-script": "pnpm --filter @tldraw-code/canvas build:board-script",
 		"mcp": "tsx apps/mcp-server/src/main.ts",
 		"smoke": "tsx scripts/smoke.ts",
+		"setup:mcp": "bash scripts/install.sh",
 		"demo:wayfinder": "tsx scripts/wayfinder-demo.ts",
 		"bench:layout": "tsx apps/canvas/bench/main.ts",
 		"demo:layout": "pnpm bench:layout && pnpm dev",

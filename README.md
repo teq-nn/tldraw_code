@@ -24,6 +24,10 @@ Claude Code --stdio/MCP--> apps/mcp-server --WebSocket ws://127.0.0.1:4477--> tl
 
 Requirements: Node >= 22 and pnpm 10 (`corepack enable`), and [tldraw offline](https://tldraw.dev) installed and running. The canvas lives inside it as a board script — no Vite dev server, no browser tab.
 
+**One step:** `pnpm setup:mcp` (or `scripts/install.sh` before pnpm is set up) checks the prerequisites (Node, pnpm, `claude`, `curl`, a free port 4477) before changing anything, runs the two commands below, registers the `tldraw-canvas` server with Claude Code for your user, so it works from any directory, merges the `Stop` hook for the working indicator into `~/.claude/settings.json` (keeping your own settings and hooks), checks that Claude Code connects, runs `pnpm smoke` and prints the next steps. Running it again changes nothing; `--no-smoke` skips the smoke check, `pnpm setup:mcp --uninstall` undoes it. Details: [ADR 0032](docs/adr/0032-one-step-setup-registers-the-server-for-the-user.md).
+
+By hand, for this repo only:
+
 ```sh
 pnpm install
 pnpm build:board-script   # builds apps/canvas/dist-board-script; rerun after changing apps/canvas/src
@@ -114,7 +118,7 @@ Configuration:
 ## Development
 
 ```sh
-pnpm test        # vitest: protocol, frontier, question, diagram and prototype schemas and the diff of alternatives, MCP tools (incl. ask, compare, render_diagram, render_note, render_prototype, read_canvas and the activity digest) against a fake canvas, canvas bridge client, command handlers, graph layout, diagram frames and comparisons, prototype frames (placement, iterations, annotation anchors, sandbox policy), question card and answer watcher, canvas reads and activity tracking, collapsing answered cards, the tracker sync (ticket-to-node mapping, body conventions, `sync_wayfinder_map` against a fake GitHub, the fixture file tracker), comparisons of prototypes and settling comparisons (`settle_comparison`, collapsed alternatives, the choice pin), and the canvas-grilling, canvas-wayfinder and canvas-layout skills against the registered tools
+pnpm test        # vitest: protocol, frontier, question, diagram and prototype schemas and the diff of alternatives, MCP tools (incl. ask, compare, render_diagram, render_note, render_prototype, read_canvas and the activity digest) against a fake canvas, canvas bridge client, command handlers, graph layout, diagram frames and comparisons, prototype frames (placement, iterations, annotation anchors, sandbox policy), question card and answer watcher, canvas reads and activity tracking, collapsing answered cards, the tracker sync (ticket-to-node mapping, body conventions, `sync_wayfinder_map` against a fake GitHub, the fixture file tracker), comparisons of prototypes and settling comparisons (`settle_comparison`, collapsed alternatives, the choice pin), the canvas-grilling, canvas-wayfinder and canvas-layout skills against the registered tools, and the setup script's merge of the user settings
 pnpm typecheck   # tsc in every package
 pnpm lint        # biome (lint + format check); `pnpm format` fixes
 pnpm build       # production build of the Vite app (the CANVAS_BACKEND=vite fallback)
