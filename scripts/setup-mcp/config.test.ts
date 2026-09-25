@@ -140,6 +140,13 @@ describe('the MCP server entry', () => {
 		expect(serverAction({ ...ours, env: { CANVAS_BRIDGE_PORT: '4478' } }, ours)).toBe('replace')
 	})
 
+	it('ignores key order, a missing env and a missing type when comparing', () => {
+		const { args, command } = ours
+		expect(serverAction({ args, command }, ours)).toBe('none')
+		expect(serverAction({ env: {}, args, command, type: 'stdio' }, ours)).toBe('none')
+		expect(isOwnServer({ args, command }, '/repo')).toBe(true)
+	})
+
 	it('counts as ours only when it runs this repo', () => {
 		expect(isOwnServer(desiredServer('/repo'), '/repo')).toBe(true)
 		expect(isOwnServer(desiredServer('/elsewhere'), '/repo')).toBe(false)

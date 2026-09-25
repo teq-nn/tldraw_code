@@ -1,6 +1,6 @@
 /**
  * The two pieces of Claude Code user config that `pnpm setup:mcp` owns (ADR
- * 0032): the user-scope `tldraw-canvas` MCP server entry and the `Stop` hook
+ * 0033): the user-scope `tldraw-canvas` MCP server entry and the `Stop` hook
  * that ends the working indicator (ADR 0025). Pure functions over parsed
  * JSON, so the merge rules are tested without touching the user's files.
  */
@@ -105,7 +105,20 @@ export function desiredServer(repoRoot: string): McpServer {
 
 export function serverAction(existing: unknown, desired: McpServer): 'add' | 'replace' | 'none' {
 	if (existing === undefined) return 'add'
-	return JSON.stringify(existing) === JSON.stringify(desired) ? 'none' : 'replace'
+	return sameServer(existing, desired) ? 'none' : 'replace'
+}
+
+/** Compares what runs, not how Claude Code happened to write it (key order, a default type or env). */
+function sameServer(existing: unknown, desired: McpServer): boolean {
+	if (!isObject(existing)) return false
+	const normalize = (server: Record<string, unknown>) =>
+		JSON.stringify([
+			server.type ?? 'stdio',
+			server.command,
+			server.args ?? [],
+			Object.entries(isObject(server.env) ? server.env : {}).sort(),
+		])
+	return normalize(existing) === normalize({ ...desired })
 }
 
 /** Whether `existing` is the entry this checkout installs, so uninstall may remove it. */

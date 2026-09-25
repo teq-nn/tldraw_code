@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One-step setup of the tldraw-canvas MCP server (ADR 0032): checks the
+# One-step setup of the tldraw-canvas MCP server (ADR 0033): checks the
 # prerequisites before changing anything, installs the dependencies, builds the
 # board script, then hands over to scripts/setup-mcp.ts (register, Stop hook,
 # verify). Run it as `pnpm setup:mcp`, or directly when pnpm is not set up yet.
@@ -45,12 +45,17 @@ if [ "$uninstall" = false ]; then
 	if ! command -v curl >/dev/null 2>&1; then
 		problems+=("curl not found: the Stop hook that ends the working indicator needs it; install it with your package manager")
 	fi
-	if [ "$smoke" = true ] && command -v node >/dev/null 2>&1 &&
-		! node -e 'const s = require("node:net").createServer()
+fi
+
+# A busy bridge port only stops the smoke check, not the setup: after the first
+# run it is usually a Claude Code session already running tldraw-canvas.
+setup_args=("$@")
+if [ "$uninstall" = false ] && [ "$smoke" = true ] && command -v node >/dev/null 2>&1 &&
+	! node -e 'const s = require("node:net").createServer()
 s.once("error", () => process.exit(1))
 s.listen(Number(process.argv[1]), "127.0.0.1", () => s.close())' "$port"; then
-		problems+=("port $port is in use (CANVAS_BRIDGE_PORT), so the smoke check cannot start the server: quit what holds it (see \`ss -ltnp | grep $port\`; usually another Claude Code session with tldraw-canvas, or \`pnpm mcp\`), set CANVAS_BRIDGE_PORT, or pass --no-smoke")
-	fi
+	echo "[setup:mcp] port $port (CANVAS_BRIDGE_PORT) is in use, so the smoke check is skipped. It is usually another Claude Code session with tldraw-canvas, or \`pnpm mcp\` (see \`ss -ltnp | grep $port\`); quit it and run \`pnpm smoke\` afterwards." >&2
+	setup_args+=(--no-smoke)
 fi
 
 if [ "${#problems[@]}" -gt 0 ]; then
@@ -66,4 +71,4 @@ elif [ ! -x node_modules/.bin/tsx ]; then
 	pnpm install --frozen-lockfile
 fi
 
-exec node_modules/.bin/tsx scripts/setup-mcp.ts "$@"
+exec node_modules/.bin/tsx scripts/setup-mcp.ts "${setup_args[@]}"

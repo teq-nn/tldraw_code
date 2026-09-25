@@ -3,7 +3,7 @@
  * working directory) and merges the working-indicator `Stop` hook into the
  * user's settings, then checks it runs. Run it through `pnpm setup:mcp`
  * (scripts/install.sh), which checks the prerequisites and installs the
- * dependencies first. Idempotent; `--uninstall` undoes it. ADR 0032.
+ * dependencies first. Idempotent; `--uninstall` undoes it. ADR 0033.
  *
  *   pnpm setup:mcp [--no-smoke]
  *   pnpm setup:mcp --uninstall
@@ -26,13 +26,12 @@ import {
 const SERVER_NAME = 'tldraw-canvas'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const configDir = process.env.CLAUDE_CONFIG_DIR ?? path.join(homedir(), '.claude')
+const customConfigDir = process.env.CLAUDE_CONFIG_DIR
+const configDir = customConfigDir ?? path.join(homedir(), '.claude')
 const userSettingsFile = path.join(configDir, 'settings.json')
 // Claude Code keeps user-scope MCP servers in ~/.claude.json (inside
 // CLAUDE_CONFIG_DIR when that is set). Only read here; writes go through `claude mcp`.
-const claudeJsonFile = process.env.CLAUDE_CONFIG_DIR
-	? path.join(process.env.CLAUDE_CONFIG_DIR, '.claude.json')
-	: path.join(homedir(), '.claude.json')
+const claudeJsonFile = path.join(customConfigDir ?? homedir(), '.claude.json')
 
 const args = new Set(process.argv.slice(2))
 const log = (message: string) => console.log(`[setup:mcp] ${message}`)
@@ -136,10 +135,12 @@ function verifyConnected() {
 		encoding: 'utf8',
 	})
 	const output = `${result.stdout ?? ''}${result.stderr ?? ''}`.trim()
-	if (result.status !== 0 || !/connected/i.test(output) || /failed/i.test(output)) {
+	// `claude mcp get` prints "Status: ✔ Connected" for a healthy server.
+	if (result.status !== 0 || !/Status:\s*\S*\s*Connected\b/.test(output)) {
+		const { command, args } = desiredServer(repoRoot)
 		throw new Error(
 			`Claude Code cannot connect to "${SERVER_NAME}":\n${output}\n` +
-				`Run \`${desiredServer(repoRoot).command} ${desiredServer(repoRoot).args[0]}\` to see the server's own error.`,
+				`Run \`${command} ${args.join(' ')}\` to see the server's own error.`,
 		)
 	}
 	log(`Claude Code connects to "${SERVER_NAME}" (claude mcp get)`)
