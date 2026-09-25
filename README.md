@@ -2,6 +2,18 @@
 
 Canvas-first grilling and wayfinder sessions with Claude Code: Claude draws decision graphs, question cards and prototypes on a local [tldraw](https://tldraw.dev) canvas, and you answer on the canvas instead of reading terminal text. See the spec in [`docs/specs/canvas-first-grilling-wayfinder.md`](docs/specs/canvas-first-grilling-wayfinder.md), vocabulary in [`CONTEXT.md`](CONTEXT.md) and decisions in [`docs/adr/`](docs/adr/).
 
+## Usage
+
+```sh
+pnpm setup:mcp   # once: checks prerequisites, installs, registers the server with Claude Code
+```
+
+1. Start [tldraw offline](https://tldraw.dev). The canvas opens there by itself in the document "tldraw-code session" once Claude first uses it.
+2. Start Claude Code in any directory. `/mcp` should list `tldraw-canvas` as connected. To let Claude react to sticky notes tagged `&agent`, start it as `claude --dangerously-load-development-channels server:tldraw-canvas`.
+3. Ask for a session: "grill me on the canvas about <your plan>" (`/canvas-grilling`) or "work through wayfinder map #12 on the canvas" (`/canvas-wayfinder`). These skills live in this repo, so start Claude Code here for them; the canvas tools work anywhere. Answer on the canvas: click a card's option, or stick a note next to it.
+
+Undo the setup with `pnpm setup:mcp --uninstall`. Details and the manual route: [Running it](#running-it).
+
 ## Layout
 
 | Path | What |
