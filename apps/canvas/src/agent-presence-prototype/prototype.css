@@ -1,0 +1,482 @@
+/* PROTOTYPE (throwaway): styles for the agent presence variants. */
+
+.ap-muted {
+	color: #6b7280;
+	font-size: 12px;
+}
+.ap-link {
+	background: none;
+	border: 0;
+	color: #7c3aed;
+	cursor: pointer;
+	font-size: 12px;
+}
+.ap-dot {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: #9ca3af;
+	display: inline-block;
+	flex: none;
+}
+.ap-dot[data-status="thinking"] {
+	background: #f59e0b;
+	animation: ap-pulse 1s infinite;
+}
+.ap-dot[data-status="working"] {
+	background: #7c3aed;
+	animation: ap-pulse 0.7s infinite;
+}
+@keyframes ap-pulse {
+	50% {
+		opacity: 0.3;
+	}
+}
+
+.ap-switcher {
+	position: fixed;
+	top: 8px;
+	left: 50%;
+	transform: translateX(-50%);
+	z-index: 1000;
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 6px 12px;
+	border-radius: 999px;
+	background: #111;
+	color: #fff;
+	font:
+		13px system-ui,
+		sans-serif;
+	box-shadow: 0 4px 16px rgb(0 0 0 / 0.3);
+}
+.ap-switcher button {
+	background: #333;
+	color: #fff;
+	border: 0;
+	border-radius: 50%;
+	width: 24px;
+	height: 24px;
+	cursor: pointer;
+	font-size: 16px;
+}
+.ap-switcher__state {
+	color: #a3a3a3;
+	font-size: 12px;
+	border-left: 1px solid #444;
+	padding-left: 10px;
+}
+
+/* shared overlays */
+.ap-focus {
+	position: absolute;
+	border: 2px dashed #7c3aed;
+	border-radius: 10px;
+	pointer-events: none;
+	transition: all 0.3s;
+}
+.ap-focus--glow {
+	border: 0;
+	box-shadow:
+		0 0 0 3px rgb(124 58 237 / 0.5),
+		0 0 28px 6px rgb(124 58 237 / 0.45);
+}
+.ap-cursor {
+	position: absolute;
+	left: 0;
+	top: 0;
+	pointer-events: none;
+	transition: transform 0.5s cubic-bezier(0.3, 0.7, 0.3, 1);
+	z-index: 5;
+}
+.ap-cursor__name {
+	position: absolute;
+	left: 14px;
+	top: 14px;
+	background: #7c3aed;
+	color: #fff;
+	font: 600 11px system-ui;
+	padding: 2px 6px;
+	border-radius: 6px;
+	white-space: nowrap;
+}
+.ap-cursor__name--blue {
+	background: #0ea5e9;
+}
+
+/* A: panel */
+.ap-row {
+	position: absolute;
+	inset: 0;
+	display: flex;
+}
+.ap-row__canvas {
+	position: relative;
+	flex: 1;
+}
+.ap-panel {
+	width: 340px;
+	display: flex;
+	flex-direction: column;
+	border-left: 1px solid #e5e7eb;
+	background: #fafafa;
+	font:
+		14px system-ui,
+		sans-serif;
+}
+.ap-panel__head {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 12px;
+	padding-top: 52px;
+	border-bottom: 1px solid #e5e7eb;
+}
+.ap-panel__log {
+	flex: 1;
+	overflow: auto;
+	padding: 12px;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+.ap-panel__action {
+	color: #6b7280;
+	font-size: 12px;
+	padding-left: 4px;
+}
+.ap-bubble {
+	border: 0;
+	text-align: left;
+	font: inherit;
+	cursor: pointer;
+	padding: 8px 10px;
+	border-radius: 12px;
+	max-width: 85%;
+}
+.ap-bubble--agent {
+	background: #fff;
+	border: 1px solid #e5e7eb;
+	align-self: flex-start;
+}
+.ap-bubble--user {
+	background: #7c3aed;
+	color: #fff;
+	align-self: flex-end;
+}
+.ap-panel__input {
+	border-top: 1px solid #e5e7eb;
+	padding: 10px;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+.ap-panel__chip {
+	font-size: 11px;
+	color: #4b5563;
+	background: #ede9fe;
+	border-radius: 6px;
+	padding: 2px 8px;
+	align-self: flex-start;
+}
+.ap-panel__input textarea {
+	resize: none;
+	height: 64px;
+	font: inherit;
+	padding: 8px;
+	border-radius: 8px;
+	border: 1px solid #d1d5db;
+}
+
+/* B: fairy */
+.ap-fairy {
+	position: absolute;
+	left: 0;
+	top: 0;
+	transition: transform 0.55s cubic-bezier(0.3, 0.7, 0.3, 1);
+	z-index: 5;
+	font:
+		14px system-ui,
+		sans-serif;
+}
+.ap-fairy__body {
+	pointer-events: all;
+	position: absolute;
+	left: -16px;
+	top: -16px;
+	width: 32px;
+	height: 32px;
+	border: 0;
+	background: none;
+	cursor: pointer;
+	animation: ap-float 2.4s ease-in-out infinite;
+}
+.ap-fairy__body[data-busy="true"] {
+	animation-duration: 0.6s;
+}
+.ap-fairy__core {
+	position: absolute;
+	inset: 8px;
+	border-radius: 50%;
+	background: radial-gradient(circle at 35% 35%, #fff, #c4b5fd 40%, #7c3aed);
+	box-shadow: 0 0 18px 4px rgb(167 139 250 / 0.8);
+}
+.ap-fairy__wing {
+	position: absolute;
+	top: 2px;
+	width: 14px;
+	height: 18px;
+	border-radius: 50%;
+	background: rgb(196 181 253 / 0.6);
+	animation: ap-flap 0.3s infinite alternate;
+}
+.ap-fairy__wing--l {
+	left: -2px;
+	transform-origin: right center;
+}
+.ap-fairy__wing--r {
+	right: -2px;
+	transform-origin: left center;
+}
+@keyframes ap-float {
+	50% {
+		transform: translateY(-5px);
+	}
+}
+@keyframes ap-flap {
+	to {
+		transform: scaleX(0.5);
+	}
+}
+.ap-fairy__speech {
+	position: absolute;
+	left: 22px;
+	top: -8px;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	width: 280px;
+	pointer-events: all;
+}
+.ap-fairy__bubble {
+	text-align: left;
+	font: inherit;
+	background: #fff;
+	border: 1px solid #ddd6fe;
+	border-radius: 14px 14px 14px 4px;
+	padding: 8px 10px;
+	box-shadow: 0 4px 14px rgb(124 58 237 / 0.15);
+	cursor: pointer;
+}
+.ap-fairy__bubble--status {
+	color: #6d28d9;
+	font-style: italic;
+	font-size: 12px;
+	cursor: default;
+	align-self: flex-start;
+}
+.ap-fairy__history {
+	background: #fff;
+	border: 1px solid #ddd6fe;
+	border-radius: 12px;
+	padding: 8px;
+	max-height: 240px;
+	overflow: auto;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	font-size: 13px;
+}
+.ap-fairy__line--user {
+	color: #6b7280;
+}
+.ap-fairy__line--user::before {
+	content: "you: ";
+}
+.ap-fairy__input {
+	display: flex;
+	gap: 6px;
+	align-items: center;
+}
+.ap-fairy__input input {
+	flex: 1;
+	font: inherit;
+	padding: 6px 10px;
+	border-radius: 999px;
+	border: 2px solid #a78bfa;
+	outline: none;
+}
+
+/* C: threads */
+.ap-threadpin {
+	position: absolute;
+	pointer-events: all;
+	z-index: 4;
+	font:
+		13px system-ui,
+		sans-serif;
+}
+.ap-threadpin__dot {
+	width: 28px;
+	height: 28px;
+	border-radius: 50% 50% 50% 4px;
+	border: 2px solid #fff;
+	background: #0ea5e9;
+	color: #fff;
+	font-weight: 700;
+	cursor: pointer;
+	box-shadow: 0 2px 8px rgb(0 0 0 / 0.25);
+}
+.ap-threadpin__dot[data-unread="true"] {
+	background: #f43f5e;
+}
+.ap-threadpin__dot[data-busy="true"] {
+	animation: ap-pulse 0.7s infinite;
+}
+.ap-thread {
+	position: absolute;
+	pointer-events: all;
+	z-index: 6;
+}
+.ap-thread--open {
+	width: 280px;
+	background: #fff;
+	border-radius: 12px;
+	padding: 10px;
+	box-shadow: 0 8px 24px rgb(0 0 0 / 0.18);
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	font:
+		13px system-ui,
+		sans-serif;
+}
+.ap-threadpin .ap-thread--open {
+	left: 34px;
+	top: 0;
+}
+.ap-thread textarea,
+.ap-thread input {
+	font: inherit;
+	padding: 6px 8px;
+	border: 1px solid #d1d5db;
+	border-radius: 8px;
+	resize: none;
+}
+.ap-thread__msg--agent b {
+	color: #0284c7;
+}
+.ap-talkhere {
+	position: absolute;
+	transform: translateX(-50%);
+	pointer-events: all;
+	border: 0;
+	border-radius: 999px;
+	padding: 5px 12px;
+	background: #0ea5e9;
+	color: #fff;
+	font: 600 12px system-ui;
+	cursor: pointer;
+	box-shadow: 0 2px 8px rgb(0 0 0 / 0.2);
+	z-index: 3;
+}
+.ap-talkhere kbd {
+	opacity: 0.7;
+	font-size: 10px;
+	margin-left: 4px;
+}
+
+/* D: command bar */
+.ap-edgeglow {
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+	transition: box-shadow 0.4s;
+}
+.ap-edgeglow[data-busy="true"] {
+	box-shadow: inset 0 0 40px 4px rgb(124 58 237 / 0.35);
+	animation: ap-pulse 2s infinite;
+}
+.ap-cmd {
+	position: absolute;
+	left: 50%;
+	bottom: 72px;
+	transform: translateX(-50%);
+	width: min(560px, 90vw);
+	pointer-events: all;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	font:
+		14px system-ui,
+		sans-serif;
+	z-index: 5;
+}
+.ap-cmd__ticker {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	border: 0;
+	background: rgb(255 255 255 / 0.92);
+	border-radius: 10px;
+	padding: 6px 12px;
+	cursor: pointer;
+	font: inherit;
+	font-size: 13px;
+	text-align: left;
+	box-shadow: 0 2px 8px rgb(0 0 0 / 0.1);
+}
+.ap-cmd__last {
+	flex: 1;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	color: #374151;
+}
+.ap-cmd__progress {
+	flex: 1;
+	height: 4px;
+	background: #ede9fe;
+	border-radius: 2px;
+	overflow: hidden;
+}
+.ap-cmd__progress span {
+	display: block;
+	height: 100%;
+	background: #7c3aed;
+	transition: width 0.4s;
+}
+.ap-cmd input {
+	width: 100%;
+	box-sizing: border-box;
+	font: inherit;
+	font-size: 15px;
+	padding: 12px 16px;
+	border-radius: 14px;
+	border: 1px solid #d1d5db;
+	box-shadow: 0 6px 24px rgb(0 0 0 / 0.14);
+	outline: none;
+}
+.ap-cmd input:focus {
+	border-color: #7c3aed;
+}
+.ap-cmd__log {
+	background: #fff;
+	border-radius: 12px;
+	padding: 10px;
+	max-height: 260px;
+	overflow: auto;
+	box-shadow: 0 6px 24px rgb(0 0 0 / 0.14);
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	font-size: 13px;
+}
+.ap-cmd__line--agent-action {
+	color: #6b7280;
+	font-size: 12px;
+}
+.ap-cmd__line--user-speech {
+	color: #6d28d9;
+}

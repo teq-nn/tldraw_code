@@ -14,6 +14,7 @@
 		"setup:mcp": "bash scripts/install.sh",
 		"demo:wayfinder": "tsx scripts/wayfinder-demo.ts",
 		"bench:layout": "tsx apps/canvas/bench/main.ts",
+		"prototype:agent-presence": "pnpm --filter @tldraw-code/canvas dev --open '/?prototype=agent-presence'",
 		"demo:layout": "pnpm bench:layout && pnpm dev",
 		"build": "pnpm -r build",
 		"typecheck": "tsc -p tsconfig.json && pnpm -r typecheck",

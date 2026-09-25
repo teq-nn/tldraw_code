@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { type Editor, type TLComponents, Tldraw } from 'tldraw'
+import { AgentPresencePrototype } from './agent-presence-prototype/AgentPresencePrototype'
 import { QuestionCardShapeUtil } from './ask/QuestionCardShapeUtil'
 import { useCanvasBridge } from './bridge/useCanvasBridge'
 import { CanvasFrameShapeUtil } from './comparison/CanvasFrameShapeUtil'
@@ -28,6 +29,7 @@ const shapeUtils = [
  */
 export function App() {
 	const params = new URLSearchParams(window.location.search)
+	if (params.get('prototype') === 'agent-presence') return <AgentPresencePrototype />
 	if (params.has('demo')) return <LayoutDemo shapeUtils={shapeUtils} />
 	const snapshot = params.get('snapshot')
 	if (snapshot) return <SnapshotCanvas url={snapshot} />
