@@ -126,7 +126,7 @@ function isFree(editor: Editor, box: Box): boolean {
 }
 
 /** Pan (and zoom out if needed, never in beyond 100 %) so the card is fully visible. */
-function bringIntoView(editor: Editor, id: TLShapeId): void {
+export function bringIntoView(editor: Editor, id: TLShapeId): void {
 	const bounds = editor.getShapePageBounds(id)
 	if (!bounds) return
 	// Keep a margin so the card is not hidden under the toolbar at the viewport edge.

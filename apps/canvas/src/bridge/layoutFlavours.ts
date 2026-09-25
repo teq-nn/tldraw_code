@@ -2,6 +2,7 @@ import type { Editor } from 'tldraw'
 import { ANCHORED_FLAVOUR } from './anchoredFlavour'
 import type { CommandHandlers } from './BridgeClient'
 import { type CommandHandlerDeps, createCommandHandlers } from './commandHandlers'
+import { USER_OWNED_FLAVOUR } from './userOwnedFlavour'
 
 /**
  * A layout flavour (docs/research/canvas-layout.md §12): one coherent way
@@ -30,7 +31,11 @@ export const BASELINE_FLAVOUR: LayoutFlavour = {
  * here: the layout benchmark scores each one, and the canvas runs the one
  * named in its URL.
  */
-export const LAYOUT_FLAVOURS: readonly LayoutFlavour[] = [BASELINE_FLAVOUR, ANCHORED_FLAVOUR]
+export const LAYOUT_FLAVOURS: readonly LayoutFlavour[] = [
+	BASELINE_FLAVOUR,
+	ANCHORED_FLAVOUR,
+	USER_OWNED_FLAVOUR,
+]
 
 /** The flavour with this name, or undefined when there is none. */
 export function findLayoutFlavour(name: string): LayoutFlavour | undefined {

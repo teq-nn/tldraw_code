@@ -1,0 +1,3 @@
+interface:
+  display_name: "Canvas Layout (F2 candidate)"
+  short_description: "Keep the user-owned canvas stable: new content beside its subject, tidy only on request"

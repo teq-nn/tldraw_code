@@ -13,6 +13,7 @@ Canvas-first grilling and wayfinder sessions with Claude Code: Claude draws deci
 | `.agents/skills/canvas-wayfinder` | The canvas wayfinder skill (linked from `.claude/skills`) ([ADR 0022](docs/adr/0022-canvas-wayfinder-skill.md)) |
 | `scripts/wayfinder-demo.ts` | A scripted wayfinder session against a fixture tracker (`pnpm demo:wayfinder`, [ADR 0023](docs/adr/0023-fixture-tracker-and-scripted-wayfinder-demo.md)) |
 | `apps/canvas/bench` | The layout benchmark: a scripted scene scored per layout flavour (`pnpm bench:layout`) |
+| `.agents/skills/canvas-layout-f2` | The `canvas-layout` skill for layout flavour F2 "user-owned space" (`?layout=user-owned`), a candidate, not linked into `.claude/skills` until a variant is chosen |
 
 ```
 Claude Code --stdio/MCP--> apps/mcp-server --WebSocket ws://127.0.0.1:4477--> apps/canvas (browser tab)

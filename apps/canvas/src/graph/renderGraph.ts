@@ -25,7 +25,7 @@ import { choicePinMeta, prototypeComparisonOf } from '../comparison/comparisonFr
 import { diagramMeta } from '../diagram/renderDiagrams'
 import { agentNoteMeta } from '../note/renderNote'
 import { PROTOTYPE_FRAME_TYPE } from '../prototype/PrototypeShapeUtil'
-import { type GraphLayout, layoutGraph } from './layout'
+import { type GraphLayout, type LayoutEdge, type LayoutNode, layoutGraph } from './layout'
 
 type RenderPayload = CanvasCommandPayload<'graph.render'>
 type RenderResult = CanvasCommandResult<'graph.render'>
@@ -49,6 +49,57 @@ export const NODE_MIN_HEIGHT = 80
 const EDGE_COLOR: TLDefaultColorStyle = 'grey'
 /** Gap kept around a freshly placed graph when zooming to it. */
 const VIEW_INSET = 64
+
+/** What a {@link PlaceGraph} gets: the graph's nodes with their actual sizes, and what earlier renders left. */
+export interface GraphToPlace {
+	nodes: LayoutNode[]
+	edges: LayoutEdge[]
+	/** Ids of the nodes an earlier render drew (they may since have left the graph). */
+	drawn: ReadonlySet<string>
+	/** The layout origin of the earlier renders; absent when the graph is new. */
+	previousOrigin?: { x: number; y: number }
+}
+
+/** Where a {@link PlaceGraph} puts the nodes. */
+export interface GraphPlacement {
+	/** The layout origin, remembered in the meta of every node placed. */
+	origin: { x: number; y: number }
+	/** Top-left page position per node id. A node left out stays where it is. */
+	positions: Map<string, { x: number; y: number }>
+}
+
+/**
+ * Decides where a render puts the graph's nodes: a layout flavour's say in
+ * `render_graph`. `layOut` is the render's layout, for placing the whole graph.
+ */
+export type PlaceGraph = (
+	editor: Editor,
+	graph: GraphToPlace,
+	layOut: GraphLayout,
+) => GraphPlacement
+
+/**
+ * The baseline placement (ADR 0004, 0005): lay the whole graph out afresh at
+ * the stored origin, or centred in the viewport when it is new, and keep it
+ * clear of the rows to its right and of what Claude placed below it. Every
+ * node gets a position.
+ */
+export const layOutWholeGraph: PlaceGraph = (editor, graph, layOut) => {
+	const layout = layOut(graph.nodes, graph.edges)
+	const origin = clearOfPlaced(
+		editor,
+		clearOfRows(
+			editor,
+			graph.previousOrigin ?? centredOrigin(editor, layout.width, layout.height),
+			layout,
+		),
+		graph.nodes.map((node) => ({ ...node, ...(layout.positions.get(node.id) ?? { x: 0, y: 0 }) })),
+	)
+	const positions = new Map(
+		[...layout.positions].map(([id, { x, y }]) => [id, { x: origin.x + x, y: origin.y + y }]),
+	)
+	return { origin, positions }
+}
 
 /** Marker stored in `shape.meta` of every shape `render_graph` owns. */
 export interface GraphShapeMeta {
@@ -78,12 +129,15 @@ export function graphMeta(meta: unknown): GraphShapeMeta | undefined {
  * rendering up to date. Shapes are keyed by node id / edge endpoints, so a
  * repeated call updates them in place, adds what is new and removes what is
  * gone; nothing is duplicated. All changes land in one undo step. `layOut`
- * places the nodes; a layout flavour may bring its own (issue #27).
+ * lays the whole graph out; a layout flavour may bring its own (issue #27).
+ * `place` decides where the nodes go: by default the whole graph is laid out
+ * afresh; a flavour may keep drawn nodes where they are (issue #28).
  */
 export function renderGraph(
 	editor: Editor,
 	payload: RenderPayload,
 	layOut: GraphLayout = layoutGraph,
+	place: PlaceGraph = layOutWholeGraph,
 ): RenderResult {
 	const result: RenderResult = {
 		nodes: { created: 0, updated: 0, removed: 0 },
@@ -149,33 +203,34 @@ export function renderGraph(
 			}
 		}
 
-		// 3. Lay the graph out with the nodes' actual sizes (text may have grown them).
+		// 3. Place the nodes with their actual sizes (text may have grown them).
 		const sized = payload.nodes.map((node) => {
 			const bounds = editor.getShapePageBounds(nodeShapeId(node.id))
 			return { id: node.id, w: bounds?.w ?? NODE_WIDTH, h: bounds?.h ?? NODE_MIN_HEIGHT }
 		})
-		const layout = layOut(sized, payload.edges)
-		const origin = clearOfPlaced(
+		const { origin, positions } = place(
 			editor,
-			clearOfRows(
-				editor,
-				previousMeta
-					? { x: previousMeta.originX, y: previousMeta.originY }
-					: centredOrigin(editor, layout.width, layout.height),
-				layout,
-			),
-			sized.map((node) => ({ ...node, ...(layout.positions.get(node.id) ?? { x: 0, y: 0 }) })),
+			{
+				nodes: sized,
+				edges: payload.edges,
+				drawn: new Set(existing.flatMap((shape) => drawnNodeId(shape.meta) ?? [])),
+				...(previousMeta && {
+					previousOrigin: { x: previousMeta.originX, y: previousMeta.originY },
+				}),
+			},
+			layOut,
 		)
 
 		editor.updateShapes<TLGeoShape>(
-			payload.nodes.map((node) => {
-				const position = layout.positions.get(node.id) ?? { x: 0, y: 0 }
+			payload.nodes.flatMap((node) => {
+				const position = positions.get(node.id)
+				if (!position) return []
 				return {
 					id: nodeShapeId(node.id),
 					type: 'geo',
 					parentId: editor.getCurrentPageId(),
-					x: origin.x + position.x,
-					y: origin.y + position.y,
+					x: position.x,
+					y: position.y,
 					rotation: 0,
 					meta: meta('node', node.id, origin),
 				}
@@ -233,6 +288,12 @@ function nodeText(title: string, note: string | undefined): TLRichText {
 		content: paragraph.content?.map((run) => ({ ...run, marks: [{ type: 'italic' }] })),
 	}))
 	return { ...text, content: [first, ...italic] } as TLRichText
+}
+
+/** The node id of a decision node shape `render_graph` drew, or undefined for any other shape. */
+function drawnNodeId(shapeMeta: unknown): string | undefined {
+	const marker = graphMeta(shapeMeta)
+	return marker?.graphPart === 'node' ? marker.graphKey : undefined
 }
 
 function meta(
