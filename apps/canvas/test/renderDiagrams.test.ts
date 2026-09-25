@@ -248,6 +248,32 @@ describe('diagram.render (compare)', () => {
 		expect(offset(0, 'db')).toEqual(offset(1, 'db'))
 	})
 
+	it('lays each flow out in its own edge order when the alternatives order the same steps differently (#23)', async () => {
+		const steps = (order: string[]): DiagramSpec => ({
+			// Nodes listed in one fixed order, connected in another.
+			nodes: ['press', 'advertise', 'slot', 'remember', 'wait'].map((id) => ({ id, label: id })),
+			edges: order.slice(1).map((to, index) => ({ from: order[index] as string, to })),
+		})
+		const orders = [
+			['press', 'advertise', 'wait', 'slot', 'remember'],
+			['press', 'advertise', 'slot', 'wait', 'remember'],
+		]
+		await renderComparison(orders.map(steps))
+		orders.forEach((order, index) => {
+			const boxes = order.map((id) => pageBounds(diagramNodeId('comparison', 'ingest', index, id)))
+			for (const [i, box] of boxes.entries()) {
+				const next = boxes[i + 1]
+				if (next) expect(box.maxX).toBeLessThan(next.minX)
+				expect(box.y).toBe(boxes[0]?.y)
+			}
+			const frameBounds = pageBounds(frame('comparison', 'ingest', index).id)
+			for (const box of boxes) expect(frameBounds.contains(box)).toBe(true)
+		})
+		const a = pageBounds(frame('comparison', 'ingest', 0).id)
+		const b = pageBounds(frame('comparison', 'ingest', 1).id)
+		expect([a.w, a.h]).toEqual([b.w, b.h])
+	})
+
 	it('shows the caption and the colour legend in each frame', async () => {
 		await renderComparison([direct, queued])
 		const texts = editor

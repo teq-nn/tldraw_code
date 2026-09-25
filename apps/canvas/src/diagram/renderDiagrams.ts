@@ -21,7 +21,7 @@ import {
 	toRichText,
 } from 'tldraw'
 import { UNSETTLED, unpinComparison } from '../comparison/comparisonFrames'
-import { layoutGraph } from '../graph/layout'
+import { layoutFrames } from './frameLayouts'
 
 type RenderPayload = CanvasCommandPayload<'diagram.render'>
 type RenderResult = CanvasCommandResult<'diagram.render'>
@@ -221,7 +221,8 @@ export function renderDiagrams(editor: Editor, payload: RenderPayload): RenderRe
 			}
 		})
 
-		// 3. One layout for all frames, over the union of their nodes and edges.
+		// 3. One layout for all frames, over the union of their nodes and edges,
+		// unless the frames order the same nodes differently (#23).
 		const slots = new Map<string, { w: number; h: number }>()
 		payload.frames.forEach((frame, index) => {
 			for (const node of frame.nodes) {
@@ -230,24 +231,28 @@ export function renderDiagrams(editor: Editor, payload: RenderPayload): RenderRe
 				slots.set(node.id, { w: Math.max(w, slot?.w ?? 0), h: Math.max(h, slot?.h ?? 0) })
 			}
 		})
-		const unionEdges = new Map<string, { from: string; to: string }>()
-		for (const frame of payload.frames) {
-			for (const edge of frame.edges) unionEdges.set(edgeKey(edge), edge)
-		}
-		const layout = layoutGraph(
-			[...slots].map(([nodeId, size]) => ({ id: nodeId, ...size })),
-			[...unionEdges.values()],
+		const layouts = layoutFrames(
+			payload.frames.map((frame) => ({
+				nodes: frame.nodes.map((node) => ({
+					id: node.id,
+					...(slots.get(node.id) ?? { w: 0, h: 0 }),
+				})),
+				edges: frame.edges,
+			})),
 		)
+		const layoutW = Math.max(...layouts.map((layout) => layout.width))
+		const layoutH = Math.max(...layouts.map((layout) => layout.height))
 		const top = FRAME_PADDING + (withCaption ? CAPTION_HEIGHT : 0)
-		const frameW = Math.max(MIN_FRAME_WIDTH, layout.width + 2 * FRAME_PADDING)
-		const frameH = top + layout.height + FRAME_PADDING
+		const frameW = Math.max(MIN_FRAME_WIDTH, layoutW + 2 * FRAME_PADDING)
+		const frameH = top + layoutH + FRAME_PADDING
 		const rowW = payload.frames.length * frameW + (payload.frames.length - 1) * FRAME_GAP
 		const rowOrigin = previousMeta ? origin : newRowOrigin(editor, contentBounds, rowW, frameH)
-		// Centre the diagram in frames made wider than it by the minimum width.
-		const left = Math.round((frameW - layout.width) / 2)
 
 		payload.frames.forEach((frame, index) => {
 			const frameId = diagramFrameId(kind, id, index)
+			const layout = layouts[index] ?? { positions: new Map(), width: 0, height: 0 }
+			// Centre the diagram in frames made wider than it by the minimum width or a wider alternative.
+			const left = Math.round((frameW - layout.width) / 2)
 			editor.updateShape<TLFrameShape>({
 				id: frameId,
 				type: 'frame',
