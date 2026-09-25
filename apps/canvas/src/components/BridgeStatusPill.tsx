@@ -30,10 +30,10 @@ export function BridgeStatusPill({
 			<span className="bridge-status__dot" />
 			{busy ? WORKING_LABEL : LABELS[status]}
 			{busy && (
-				<span className="bridge-status__typing" aria-hidden="true">
-					<span className="bridge-status__typing-dot" />
-					<span className="bridge-status__typing-dot" />
-					<span className="bridge-status__typing-dot" />
+				<span className="bridge-status__working" aria-hidden="true">
+					<span className="bridge-status__working-dot" />
+					<span className="bridge-status__working-dot" />
+					<span className="bridge-status__working-dot" />
 				</span>
 			)}
 		</div>

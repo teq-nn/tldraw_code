@@ -14,14 +14,14 @@ describe('BridgeStatusPill', () => {
 		expect(html).toContain('data-status="connected"')
 		expect(html).toContain('data-working="false"')
 		expect(html).toContain('Claude Code connected')
-		expect(html).not.toContain('bridge-status__typing')
+		expect(html).not.toContain('bridge-status__working')
 	})
 
 	it('shows three dots and a working label while Claude is working', () => {
 		const html = render({ status: 'connected', working: true })
 		expect(html).toContain('data-working="true"')
 		expect(html).toContain('Claude is working…')
-		expect(html.match(/bridge-status__typing-dot/g)).toHaveLength(3)
+		expect(html.match(/bridge-status__working-dot/g)).toHaveLength(3)
 	})
 
 	it('never shows Claude as working while the bridge is not connected', () => {

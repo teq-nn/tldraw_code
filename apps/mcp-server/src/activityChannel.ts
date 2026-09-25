@@ -83,7 +83,7 @@ export class ActivityChannel {
 			return await run()
 		} finally {
 			this.busy--
-			this.stopWorking()
+			this.delivered()
 		}
 	}
 
@@ -95,6 +95,10 @@ export class ActivityChannel {
 	/** Claude read the canvas: the next activity is new again. */
 	read(): void {
 		this.lastReported = undefined
+	}
+
+	/** A canvas tool call has delivered its result, or failed: Claude has reacted (ADR 0025). */
+	delivered(): void {
 		this.stopWorking()
 	}
 
@@ -104,10 +108,13 @@ export class ActivityChannel {
 		const note = describeActivity(activity)
 		if (!note || note === this.lastReported) return
 		this.lastReported = note
-		this.push(note, { event: 'canvas_activity' }).then(
-			() => this.startWorking(),
-			(error: Error) => this.log(`could not push canvas activity: ${error.message}`),
-		)
+		// Working from the moment the push is sent, so a tool call that ends before the
+		// send resolves still ends it; a push that fails never counts.
+		this.startWorking()
+		this.push(note, { event: 'canvas_activity' }).catch((error: Error) => {
+			this.stopWorking()
+			this.log(`could not push canvas activity: ${error.message}`)
+		})
 	}
 
 	private startWorking(): void {

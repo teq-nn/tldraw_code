@@ -96,6 +96,15 @@ describe('agent working signal', () => {
 		expect(workingEvents()).toEqual([true, false])
 	})
 
+	it('stops when read_canvas fails', async () => {
+		await invoke()
+		canvas.failWith('handler_failed', 'boom')
+		const result = await client.callTool({ name: 'read_canvas', arguments: { screenshot: false } })
+		expect(result.isError).toBe(true)
+		await waitFor(() => workingEvents().length === 2, 'the idle event')
+		expect(workingEvents()).toEqual([true, false])
+	})
+
 	it('stops when a canvas tool fails', async () => {
 		await invoke()
 		canvas.failWith('handler_failed', 'boom')

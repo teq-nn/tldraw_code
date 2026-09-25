@@ -539,6 +539,8 @@ export function createMcpServer(bridge: CanvasBridge, options: McpServerOptions 
 				return { content }
 			} catch (error) {
 				return toolError(error)
+			} finally {
+				channel.delivered()
 			}
 		},
 	)
