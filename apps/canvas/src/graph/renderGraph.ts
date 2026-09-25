@@ -19,9 +19,11 @@ import {
 	toRichText,
 } from 'tldraw'
 import { collapseAnsweredQuestion } from '../ask/collapseQuestion'
+import { QUESTION_CARD_TYPE } from '../ask/QuestionCardShapeUtil'
 import { QUESTION_CARD_SLOT } from '../comparison/arrangement'
 import { choicePinMeta, prototypeComparisonOf } from '../comparison/comparisonFrames'
 import { diagramMeta } from '../diagram/renderDiagrams'
+import { agentNoteMeta } from '../note/renderNote'
 import { PROTOTYPE_FRAME_TYPE } from '../prototype/PrototypeShapeUtil'
 import { layoutGraph } from './layout'
 
@@ -148,12 +150,16 @@ export function renderGraph(editor: Editor, payload: RenderPayload): RenderResul
 			return { id: node.id, w: bounds?.w ?? NODE_WIDTH, h: bounds?.h ?? NODE_MIN_HEIGHT }
 		})
 		const layout = layoutGraph(sized, payload.edges)
-		const origin = clearOfRows(
+		const origin = clearOfPlaced(
 			editor,
-			previousMeta
-				? { x: previousMeta.originX, y: previousMeta.originY }
-				: centredOrigin(editor, layout.width, layout.height),
-			layout,
+			clearOfRows(
+				editor,
+				previousMeta
+					? { x: previousMeta.originX, y: previousMeta.originY }
+					: centredOrigin(editor, layout.width, layout.height),
+				layout,
+			),
+			sized.map((node) => ({ ...node, ...(layout.positions.get(node.id) ?? { x: 0, y: 0 }) })),
 		)
 
 		editor.updateShapes<TLGeoShape>(
@@ -295,6 +301,54 @@ function clearOfRows(
 	if (rows.length === 0) return origin
 	const limit = Math.min(...rows.map((bounds) => bounds.minX)) - ROW_GAP
 	return { x: Math.round(Math.min(origin.x, limit - layout.width)), y: origin.y }
+}
+
+/** Space kept between the graph's nodes and a card, note or frame below them. */
+const PLACED_GAP = 60
+
+/**
+ * Keep a graph that grows downward off what Claude placed below it (#26): an
+ * open question card, an agent note, a diagram or prototype frame. When a
+ * node at `origin` would come within the gap of one, the whole graph moves up
+ * above it (arrows included), so the placed shape stays where the user saw
+ * it, as the rows to the right do (`clearOfRows`). Shapes at or above the
+ * graph's top edge are left to `clearOfRows`: a graph grows right and down.
+ * The graph only ever moves up, so a shape it has cleared stays clear.
+ */
+function clearOfPlaced(
+	editor: Editor,
+	origin: { x: number; y: number },
+	nodes: { x: number; y: number; w: number; h: number }[],
+): { x: number; y: number } {
+	const placed = editor
+		.getCurrentPageShapes()
+		.filter((shape) => shape.parentId === editor.getCurrentPageId())
+		.filter(
+			(shape) =>
+				shape.type === QUESTION_CARD_TYPE ||
+				shape.type === PROTOTYPE_FRAME_TYPE ||
+				agentNoteMeta(shape.meta) !== undefined ||
+				diagramMeta(shape.meta)?.diagramPart === 'frame',
+		)
+		.flatMap((shape) => editor.getShapePageBounds(shape.id) ?? [])
+		.filter((bounds) => bounds.minY > origin.y)
+		.sort((a, b) => a.minY - b.minY)
+	const bottom = Math.max(0, ...nodes.map((node) => node.y + node.h))
+	let y = origin.y
+	for (const bounds of placed) {
+		const reaches = nodes.some((node) =>
+			withinGap(new Box(origin.x + node.x, y + node.y, node.w, node.h), bounds, PLACED_GAP),
+		)
+		if (reaches) y = bounds.minY - PLACED_GAP - bottom
+	}
+	return { x: origin.x, y: Math.round(y) }
+}
+
+/** `a` overlaps `b` or comes closer to it than `gap` on both axes. */
+function withinGap(a: Box, b: Box, gap: number): boolean {
+	return (
+		a.maxX + gap > b.minX && a.minX < b.maxX + gap && a.maxY + gap > b.minY && a.minY < b.maxY + gap
+	)
 }
 
 /** Place a new graph centred in the current viewport. */

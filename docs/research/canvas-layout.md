@@ -332,6 +332,7 @@ Script in fixed steps, run identically per flavour (fixture-driven like ADR 0023
 5. **t4**: `compare` 3 diagram alternatives (6–7 nodes, LR flows, one with a conflicting edge order, the #23 case).
 6. **t5**: a prototype comparison of 2 phone-sized frames (390×844). The user annotates one prototype.
 7. **t6**: settle both comparisons, `render_note` replying to the floating note, then a final `render_graph` adding 2 nodes.
+8. **t7** (added for #26): `ask` about `release`, which the user does not answer yet, so the card stays open (ADR 0010). Then `render_graph` adds 6 decisions after `release`, which makes the graph grow downward under the card.
 
 Score per step, then aggregate:
 - **Graph quality**: normalised crossings, backward edges, edge-length CV, block aspect |ln(w/h)|.
@@ -358,6 +359,7 @@ Score per step, then aggregate:
 - **ADR 0008 (anchor by overlap, then proximity)**: this relies on Gestalt proximity. Any flavour must keep unrelated Claude shapes out of a note's 160-unit radius, and must keep anchored nodes near their notes.
 - **ADR 0010 (collapse)**: this suits a focus-stream flavour. Its rejected option "place cards next to their node" is what proximity grouping recommends. The card currently goes below the whole graph.
   - From reading `renderGraph.ts`: `clearOfRows` only avoids frames to the **right**. I found no check that a graph growing downward avoids the card below it **(code reading, not tested)**.
+  - Confirmed and fixed in #26: the benchmark's step 8 ("grow") showed the graph covering the open card (2 Claude–Claude overlaps). A graph now moves up, clear of a card, note or frame Claude placed below it.
 - **ADR 0015 (union layout)**: this is foresighted layout across small multiples [DGK01], [APP11]. The #23 exception is a domain rule overriding a generic aesthetic [HELMKE24]. Both align with the evidence.
 - **ADR 0029 (near-square grid, |ln(w/h)|)**: this aligns with packing practice (ELK rectpacking aspect 1.3 and order preservation [ELK-RECT]; FigJam grid [FIGJAM]). Our "target 1, stable, not viewport" rationale matches ELK's use of a fixed ratio.
 - **ADR 0015/0020 (append right of everything)**: this matches make-real's append-beside pattern [TL-MAKEREAL]. It keeps old content still, but grows the page in one direction and drifts from the viewport. The camera pans without animation, and tldraw notes that animations yield to user input [TL-CAMERA], so adding animation is safe.

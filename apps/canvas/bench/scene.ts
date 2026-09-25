@@ -149,6 +149,34 @@ const thirdGraph = {
 	edges: [...secondGraph.edges, ...edges('release->docs', 'client->support')],
 }
 
+/**
+ * The release plan broken down while its question card is still open (the
+ * user has not answered yet, so the card stays, ADR 0010): six decisions
+ * join the rank after the release plan, and the graph grows downward (#26).
+ */
+const fourthGraph = {
+	nodes: [
+		...thirdGraph.nodes,
+		node('beta', 'Beta group'),
+		node('rollout', 'Staged rollout'),
+		node('rollback', 'Rollback plan'),
+		node('announce', 'Announcement'),
+		node('changelog', 'Changelog'),
+		node('training', 'Support training'),
+	],
+	edges: [
+		...thirdGraph.edges,
+		...edges(
+			'release->beta',
+			'release->rollout',
+			'release->rollback',
+			'release->announce',
+			'release->changelog',
+			'release->training',
+		),
+	],
+}
+
 const renderGraph = (
 	{ claude }: SceneContext,
 	graph: typeof firstGraph,
@@ -320,6 +348,7 @@ const AUTH_ASK = 'ask-auth'
 const API_ASK = 'ask-api-flow'
 const SYNC_ASK = 'ask-sync-ui'
 const REPLY_NOTE = 'reply-to-floating-note'
+const RELEASE_ASK = 'ask-release'
 
 export const SCENE: Scene = {
 	annotations: {
@@ -488,6 +517,20 @@ export const SCENE: Scene = {
 				content: [agentNoteShapeId(REPLY_NOTE)],
 				subject: [USER_SHAPES.noteFloating],
 			}),
+		},
+		{
+			name: 'grow',
+			async run(context) {
+				await context.claude('ask.show', {
+					askId: RELEASE_ASK,
+					question: 'How do we release v1?',
+					options: ['All at once', 'Staged'],
+					recommendation: 1,
+				})
+				// No answer yet: the card stays open while the graph grows under it.
+				await renderGraph(context, fourthGraph)
+			},
+			focus: () => ({ content: [questionCardId(RELEASE_ASK)], subject: [nodeShapeId('release')] }),
 		},
 	],
 }
