@@ -57,6 +57,10 @@ describe('canvas-grilling skill', () => {
 	it('quotes the label of the extra button on every question card', () => {
 		expect(skill).toContain(KEEP_GRILLING_LABEL)
 	})
+
+	it('asks with a question card by default and draws only when seeing decides (ADR 0028)', () => {
+		expect(skill).toContain('A question card is the default')
+	})
 })
 
 describe('canvas-wayfinder skill', () => {
@@ -103,5 +107,9 @@ describe('canvas-wayfinder skill', () => {
 
 	it('quotes the label of the extra button on every question card', () => {
 		expect(text).toContain(KEEP_GRILLING_LABEL)
+	})
+
+	it('asks with a question card by default and draws only when seeing decides (ADR 0028)', () => {
+		expect(text).toContain('A question card is the default')
 	})
 })

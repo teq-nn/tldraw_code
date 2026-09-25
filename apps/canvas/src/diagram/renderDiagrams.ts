@@ -20,8 +20,9 @@ import {
 	type TLTextShape,
 	toRichText,
 } from 'tldraw'
+import { gridCell, gridColumns, QUESTION_CARD_SLOT } from '../comparison/arrangement'
 import { UNSETTLED, unpinComparison } from '../comparison/comparisonFrames'
-import { layoutGraph } from '../graph/layout'
+import { layoutFrames } from './frameLayouts'
 
 type RenderPayload = CanvasCommandPayload<'diagram.render'>
 type RenderResult = CanvasCommandResult<'diagram.render'>
@@ -42,7 +43,7 @@ export const FRAME_PADDING = 32
 /** Height reserved for the caption and legend lines at the top of a frame. */
 const CAPTION_HEIGHT = 64
 const MIN_FRAME_WIDTH = 320
-/** Space between frames side by side, and between existing content and a new row. */
+/** Space between the frames of a comparison, and between existing content and a new row. */
 export const FRAME_GAP = 80
 const CONTENT_GAP = 160
 const VIEW_INSET = 64
@@ -221,7 +222,8 @@ export function renderDiagrams(editor: Editor, payload: RenderPayload): RenderRe
 			}
 		})
 
-		// 3. One layout for all frames, over the union of their nodes and edges.
+		// 3. One layout for all frames, over the union of their nodes and edges,
+		// unless the frames order the same nodes differently (#23).
 		const slots = new Map<string, { w: number; h: number }>()
 		payload.frames.forEach((frame, index) => {
 			for (const node of frame.nodes) {
@@ -230,29 +232,45 @@ export function renderDiagrams(editor: Editor, payload: RenderPayload): RenderRe
 				slots.set(node.id, { w: Math.max(w, slot?.w ?? 0), h: Math.max(h, slot?.h ?? 0) })
 			}
 		})
-		const unionEdges = new Map<string, { from: string; to: string }>()
-		for (const frame of payload.frames) {
-			for (const edge of frame.edges) unionEdges.set(edgeKey(edge), edge)
-		}
-		const layout = layoutGraph(
-			[...slots].map(([nodeId, size]) => ({ id: nodeId, ...size })),
-			[...unionEdges.values()],
+		const layouts = layoutFrames(
+			payload.frames.map((frame) => ({
+				nodes: frame.nodes.map((node) => ({
+					id: node.id,
+					...(slots.get(node.id) ?? { w: 0, h: 0 }),
+				})),
+				edges: frame.edges,
+			})),
 		)
+		const layoutW = Math.max(...layouts.map((layout) => layout.width))
+		const layoutH = Math.max(...layouts.map((layout) => layout.height))
 		const top = FRAME_PADDING + (withCaption ? CAPTION_HEIGHT : 0)
-		const frameW = Math.max(MIN_FRAME_WIDTH, layout.width + 2 * FRAME_PADDING)
-		const frameH = top + layout.height + FRAME_PADDING
-		const rowW = payload.frames.length * frameW + (payload.frames.length - 1) * FRAME_GAP
-		const rowOrigin = previousMeta ? origin : newRowOrigin(editor, contentBounds, rowW, frameH)
-		// Centre the diagram in frames made wider than it by the minimum width.
-		const left = Math.round((frameW - layout.width) / 2)
+		const frameW = Math.max(MIN_FRAME_WIDTH, layoutW + 2 * FRAME_PADDING)
+		const frameH = top + layoutH + FRAME_PADDING
+		// A compact grid instead of one long row, with room for the question card on the left (ADR 0029).
+		const cell = { w: frameW, h: frameH }
+		const count = payload.frames.length
+		const cardSlot = kind === 'comparison' ? QUESTION_CARD_SLOT : 0
+		const columns = gridColumns(count, cell, FRAME_GAP, cardSlot)
+		const rows = Math.ceil(count / columns)
+		const block = {
+			w: cardSlot + columns * frameW + (columns - 1) * FRAME_GAP,
+			h: rows * frameH + (rows - 1) * FRAME_GAP,
+		}
+		const rowOrigin = previousMeta
+			? origin
+			: shift(newRowOrigin(editor, contentBounds, block.w, block.h), cardSlot)
 
 		payload.frames.forEach((frame, index) => {
 			const frameId = diagramFrameId(kind, id, index)
+			const offset = gridCell(index, columns, cell, FRAME_GAP)
+			const layout = layouts[index] ?? { positions: new Map(), width: 0, height: 0 }
+			// Centre the diagram in frames made wider than it by the minimum width or a wider alternative.
+			const left = Math.round((frameW - layout.width) / 2)
 			editor.updateShape<TLFrameShape>({
 				id: frameId,
 				type: 'frame',
-				x: rowOrigin.x + index * (frameW + FRAME_GAP),
-				y: rowOrigin.y,
+				x: rowOrigin.x + offset.x,
+				y: rowOrigin.y + offset.y,
 				rotation: 0,
 				opacity: 1,
 				props: { w: frameW, h: frameH },
@@ -380,8 +398,12 @@ function nodeSize(editor: Editor, shapeId: TLShapeId): { w: number; h: number } 
 	return { w: Math.round(w), h: Math.round(h) }
 }
 
+function shift(point: { x: number; y: number }, dx: number) {
+	return { x: point.x + dx, y: point.y }
+}
+
 /**
- * Where a new row of frames goes: to the right of everything on the page,
+ * Where a new block of frames goes: to the right of everything on the page,
  * top-aligned with it, so the space below the frontier graph stays free for
  * question cards; on an empty page, centred in the viewport.
  */

@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: accepted, placement amended by ADR 0029
 ---
 
 # `compare` takes prototypes too: the same compare-and-ask flow for UI choices

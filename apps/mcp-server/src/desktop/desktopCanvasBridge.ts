@@ -22,7 +22,7 @@ export interface DesktopCanvasBridgeOptions extends CanvasBridgeOptions {
 
 /**
  * The bridge used for `CANVAS_BACKEND=desktop` (ticket #17). The bridge and
- * protocol themselves are unchanged (ADR 0027) — this only wraps `request`:
+ * protocol themselves are unchanged (ADR 0030) — this only wraps `request`:
  * before every command it makes sure the installed board script matches the
  * built bundle and the canvas is connected (reinstalling and waiting as
  * needed, via {@link DesktopReadiness}), and after every write command it

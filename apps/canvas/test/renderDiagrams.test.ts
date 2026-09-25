@@ -209,16 +209,49 @@ describe('diagram.render (render_diagram)', () => {
 })
 
 describe('diagram.render (compare)', () => {
-	it('puts every alternative in its own frame, side by side, titled with its label', async () => {
+	it('puts every alternative in its own frame, titled with its label, stacked when the frames are wide', async () => {
 		const result = await renderComparison([direct, queued])
 		expect(result.frameIds).toHaveLength(2)
 		const a = pageBounds(frame('comparison', 'ingest', 0).id)
 		const b = pageBounds(frame('comparison', 'ingest', 1).id)
 		expect(frame('comparison', 'ingest', 0).props.name).toBe('Direct')
 		expect(frame('comparison', 'ingest', 1).props.name).toBe('Queued')
+		// Left-to-right flows make wide, flat frames: one below the other, not one long row (#21).
+		expect(a.maxY).toBeLessThan(b.minY)
+		expect(a.x).toBe(b.x)
+		expect([a.w, a.h]).toEqual([b.w, b.h])
+	})
+
+	it('puts tall frames side by side, top-aligned', async () => {
+		// Unconnected nodes all share one rank: dagre stacks them in a tall column.
+		const column: DiagramSpec = {
+			nodes: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].map((n) => ({ id: n, label: n })),
+			edges: [],
+		}
+		await renderComparison([column, column])
+		const a = pageBounds(frame('comparison', 'ingest', 0).id)
+		const b = pageBounds(frame('comparison', 'ingest', 1).id)
+		expect(a.h).toBeGreaterThan(a.w)
 		expect(a.maxX).toBeLessThan(b.minX)
 		expect(a.y).toBe(b.y)
-		expect([a.w, a.h]).toEqual([b.w, b.h])
+	})
+
+	it('keeps three alternatives and their question card in a compact block, not one long row', async () => {
+		await renderComparison([direct, queued, direct])
+		await handlers()['ask.show']({
+			askId: 'q1',
+			question: 'Which data flow?',
+			options: ['Direct', 'Queued', 'Batched'],
+			recommendation: 1,
+			comparison: 'ingest',
+		})
+		const block = editor.getShapesPageBounds([
+			questionCardId('q1'),
+			...[0, 1, 2].map((index) => diagramFrameId('comparison', 'ingest', index)),
+		])
+		const aspect = (block?.w ?? 0) / (block?.h ?? 1)
+		expect(aspect).toBeLessThan(2)
+		expect(aspect).toBeGreaterThan(0.5)
 	})
 
 	it('highlights exactly the nodes and edges that differ, in colour', async () => {
@@ -248,6 +281,32 @@ describe('diagram.render (compare)', () => {
 		expect(offset(0, 'db')).toEqual(offset(1, 'db'))
 	})
 
+	it('lays each flow out in its own edge order when the alternatives order the same steps differently (#23)', async () => {
+		const steps = (order: string[]): DiagramSpec => ({
+			// Nodes listed in one fixed order, connected in another.
+			nodes: ['press', 'advertise', 'slot', 'remember', 'wait'].map((id) => ({ id, label: id })),
+			edges: order.slice(1).map((to, index) => ({ from: order[index] as string, to })),
+		})
+		const orders = [
+			['press', 'advertise', 'wait', 'slot', 'remember'],
+			['press', 'advertise', 'slot', 'wait', 'remember'],
+		]
+		await renderComparison(orders.map(steps))
+		orders.forEach((order, index) => {
+			const boxes = order.map((id) => pageBounds(diagramNodeId('comparison', 'ingest', index, id)))
+			for (const [i, box] of boxes.entries()) {
+				const next = boxes[i + 1]
+				if (next) expect(box.maxX).toBeLessThan(next.minX)
+				expect(box.y).toBe(boxes[0]?.y)
+			}
+			const frameBounds = pageBounds(frame('comparison', 'ingest', index).id)
+			for (const box of boxes) expect(frameBounds.contains(box)).toBe(true)
+		})
+		const a = pageBounds(frame('comparison', 'ingest', 0).id)
+		const b = pageBounds(frame('comparison', 'ingest', 1).id)
+		expect([a.w, a.h]).toEqual([b.w, b.h])
+	})
+
 	it('shows the caption and the colour legend in each frame', async () => {
 		await renderComparison([direct, queued])
 		const texts = editor
@@ -275,7 +334,7 @@ describe('diagram.render (compare)', () => {
 		expect(editor.getCurrentPageShapeIds().size).toBe(0)
 	})
 
-	it('gets its question card right below the frames', async () => {
+	it('gets its question card left of the frames, clear of the graph', async () => {
 		await createCommandHandlers(editor)['graph.render']({
 			nodes: [{ id: 'flow', title: 'Data flow', status: 'open' }],
 			edges: [],
@@ -294,8 +353,35 @@ describe('diagram.render (compare)', () => {
 			diagramFrameId('comparison', 'ingest', 0),
 			diagramFrameId('comparison', 'ingest', 1),
 		])
-		expect(card.minY).toBeGreaterThan(frames?.maxY ?? Number.POSITIVE_INFINITY)
-		expect(Math.abs(card.center.x - (frames?.center.x ?? 0))).toBeLessThan(1)
+		expect(card.maxX).toBeLessThan(frames?.minX ?? Number.NEGATIVE_INFINITY)
+		expect(card.minY).toBeGreaterThanOrEqual(frames?.minY ?? Number.POSITIVE_INFINITY)
+		expect(card.minX).toBeGreaterThan(pageBounds(nodeShapeId('flow')).maxX)
+	})
+
+	it('puts the question card below the frames when the space on their left is taken', async () => {
+		await renderComparison([direct, queued])
+		const frames = editor.getShapesPageBounds([
+			diagramFrameId('comparison', 'ingest', 0),
+			diagramFrameId('comparison', 'ingest', 1),
+		])
+		if (!frames) throw new Error('no frames')
+		editor.createShape({
+			id: createShapeId('in-the-way'),
+			type: 'geo',
+			x: frames.minX - 300,
+			y: frames.minY,
+			props: { w: 200, h: 200 },
+		})
+		await handlers()['ask.show']({
+			askId: 'q1',
+			question: 'Which data flow?',
+			options: ['Direct', 'Queued'],
+			recommendation: 1,
+			comparison: 'ingest',
+		})
+		const card = pageBounds(questionCardId('q1'))
+		expect(card.minY).toBeGreaterThan(frames.maxY)
+		expect(Math.abs(card.center.x - frames.center.x)).toBeLessThan(1)
 	})
 })
 

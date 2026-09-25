@@ -152,6 +152,20 @@ describe('pushing canvas activity', () => {
 			expect(sent).toEqual([])
 		})
 
+		it('does not push a tagged note the user never wrote in this tab, whatever the baseline', () => {
+			// synced from another tab or loaded from storage: a remote change, not the user's
+			editor.store.mergeRemoteChanges(() => {
+				editor.createShape<TLNoteShape>({
+					id: createShapeId(),
+					type: 'note',
+					props: { richText: toRichText('left over &agent') },
+				})
+			})
+			addNote('just a thought')
+			vi.advanceTimersByTime(QUIET)
+			expect(sent).toEqual([])
+		})
+
 		it('pushes again when the user rewrites a tagged note', () => {
 			const id = addNote('Use DuckDB &agent')
 			vi.advanceTimersByTime(QUIET)

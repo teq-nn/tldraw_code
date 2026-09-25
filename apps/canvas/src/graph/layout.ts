@@ -18,6 +18,9 @@ export interface LayoutResult {
 	height: number
 }
 
+/** Places a graph's nodes: {@link layoutGraph}, or a layout flavour's own (issue #27). */
+export type GraphLayout = (nodes: LayoutNode[], edges: LayoutEdge[]) => LayoutResult
+
 /**
  * The house layout style for graphs on the canvas (ADR 0004): layered,
  * left to right, blockers left of what they block. Pure and deterministic, so
@@ -40,7 +43,11 @@ export function layoutGraph(nodes: LayoutNode[], edges: LayoutEdge[]): LayoutRes
 	for (const node of nodes) g.setNode(node.id, { width: node.w, height: node.h })
 	for (const edge of edges) g.setEdge(edge.from, edge.to)
 	layout(g)
+	return layoutResult(g, nodes)
+}
 
+/** The positions dagre gave `nodes` in the laid-out `g`, as top-left corners, and the block's size. */
+export function layoutResult(g: Graph, nodes: LayoutNode[]): LayoutResult {
 	const positions = new Map<string, { x: number; y: number }>()
 	let width = 0
 	let height = 0

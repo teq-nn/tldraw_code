@@ -30,28 +30,43 @@ export class ActivityTracker {
 	 * as seen: only what the user writes from now on wakes Claude.
 	 */
 	private handled: Map<TLShapeId, string>
+	/**
+	 * Notes the user wrote or rewrote here, in this tab, since Claude last heard
+	 * of them. Only these can wake Claude: a tagged note that merely exists (left
+	 * over from an earlier session, loaded from storage, or synced from another
+	 * tab) never does, however the baseline above came to be.
+	 */
+	private readonly touched = new Set<TLShapeId>()
 
 	constructor(private readonly editor: Editor) {
 		this.handled = this.invocations()
 		const tracked = (shape: TLShape) => this.commandDepth === 0 && roleOf(shape) !== 'question_card'
 		this.cleanups = [
-			editor.sideEffects.registerAfterCreateHandler('shape', (shape) => {
+			editor.sideEffects.registerAfterCreateHandler('shape', (shape, source) => {
+				if (source === 'user') this.touch(shape)
 				if (!tracked(shape)) return
 				this.added.set(shape.id, roleOf(shape))
 				this.notify()
 			}),
-			editor.sideEffects.registerAfterChangeHandler('shape', (_prev, next) => {
+			editor.sideEffects.registerAfterChangeHandler('shape', (_prev, next, source) => {
+				if (source === 'user') this.touch(next)
 				if (!tracked(next)) return
 				if (!this.added.has(next.id)) this.changed.add(next.id)
 				this.notify()
 			}),
 			editor.sideEffects.registerAfterDeleteHandler('shape', (shape) => {
+				this.touched.delete(shape.id)
 				if (!tracked(shape)) return
 				this.changed.delete(shape.id)
 				if (!this.added.delete(shape.id)) this.removed++
 				this.notify()
 			}),
 		]
+	}
+
+	/** The user wrote to this shape: if it is a note, it may now address Claude. */
+	private touch(shape: TLShape): void {
+		if (shape.type === 'note' && this.commandDepth === 0) this.touched.add(shape.id)
 	}
 
 	/**
@@ -92,6 +107,7 @@ export class ActivityTracker {
 	/** Claude was told about the `&agent` notes there are now: they do not wake it again. */
 	markInvocationsHandled(): void {
 		this.handled = this.invocations()
+		this.touched.clear()
 	}
 
 	/** The user's sticky notes addressed to Claude, with their text (Claude's own notes never count). */
@@ -105,10 +121,10 @@ export class ActivityTracker {
 		return notes
 	}
 
-	/** Addressed to Claude and new or rewritten since it last heard of them. */
+	/** Addressed to Claude and written or rewritten by the user since it last heard of them. */
 	private unhandledInvocations(): TLShapeId[] {
 		return [...this.invocations()]
-			.filter(([id, text]) => this.handled.get(id) !== text)
+			.filter(([id, text]) => this.touched.has(id) && this.handled.get(id) !== text)
 			.map(([id]) => id)
 	}
 

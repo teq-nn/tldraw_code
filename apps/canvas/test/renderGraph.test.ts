@@ -4,7 +4,14 @@ import {
 	computeFrontier,
 	type FrontierGraph,
 } from '@tldraw-code/protocol'
-import type { Editor, TLArrowBinding, TLArrowShape, TLGeoShape, TLShapeId } from 'tldraw'
+import {
+	createShapeId,
+	type Editor,
+	type TLArrowBinding,
+	type TLArrowShape,
+	type TLGeoShape,
+	type TLShapeId,
+} from 'tldraw'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createCommandHandlers } from '../src/bridge/commandHandlers'
 import { edgeShapeId, nodeShapeId } from '../src/graph/renderGraph'
@@ -200,6 +207,58 @@ describe('graph.render', () => {
 		await render(graph)
 
 		expect({ x: node('c').x, y: node('c').y }).toEqual(laidOut)
+	})
+
+	it('grows clear of the open question card below it instead of covering it (#26)', async () => {
+		await render(graph)
+		const handlers = createCommandHandlers(editor)
+		const { shapeId } = await handlers['ask.show']({
+			askId: 'schema',
+			question: 'Which schema?',
+			options: ['JSON', 'Tables'],
+			recommendation: 0,
+		})
+		const card = editor.getShapePageBounds(shapeId as TLShapeId)
+		if (!card) throw new Error('no question card')
+
+		// The card is still open when the graph grows downward: six more decisions share b's rank.
+		const extra = ['f', 'g', 'h', 'i', 'j', 'k']
+		await render({
+			nodes: [...graph.nodes, ...extra.map((id) => ({ id, title: id, status: 'open' as const }))],
+			edges: [...graph.edges, ...extra.map((id) => ({ from: 'a', to: id }))],
+		})
+
+		const grown = editor.getShapesPageBounds(
+			[...graph.nodes.map((n) => n.id), ...extra].map((id) => nodeShapeId(id)),
+		)
+		expect(grown?.maxY).toBeLessThan(card.minY)
+		expect(editor.getShapePageBounds(shapeId as TLShapeId)).toEqual(card)
+	})
+
+	it("grows clear of Claude's note below it too", async () => {
+		await render(graph)
+		const below = editor.getShapesPageBounds(graph.nodes.map((n) => nodeShapeId(n.id)))
+		if (!below) throw new Error('no graph')
+		const sticky = createShapeId('user-sticky')
+		editor.createShape({ id: sticky, type: 'note', x: below.minX, y: below.maxY + 100 })
+		const { shapeId } = await createCommandHandlers(editor)['note.render']({
+			text: 'Noted.',
+			replyTo: sticky,
+		})
+		const note = editor.getShapePageBounds(shapeId as TLShapeId)
+		if (!note) throw new Error('no agent note')
+
+		const extra = ['f', 'g', 'h', 'i', 'j', 'k']
+		await render({
+			nodes: [...graph.nodes, ...extra.map((id) => ({ id, title: id, status: 'open' as const }))],
+			edges: [...graph.edges, ...extra.map((id) => ({ from: 'a', to: id }))],
+		})
+
+		const grown = editor.getShapesPageBounds(
+			[...graph.nodes.map((n) => n.id), ...extra].map((id) => nodeShapeId(id)),
+		)
+		expect(grown?.maxY).toBeLessThan(note.minY)
+		expect(editor.getShapePageBounds(shapeId as TLShapeId)).toEqual(note)
 	})
 
 	it('leaves shapes that render_graph does not own alone', async () => {

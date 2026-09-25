@@ -6,6 +6,7 @@ import {
 } from '@tldraw-code/protocol'
 import {
 	type Editor,
+	kickoutOccludedShapes,
 	renderPlaintextFromRichText,
 	type TLArrowBinding,
 	type TLFrameShape,
@@ -14,6 +15,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { questionCardId } from '../src/ask/showQuestion'
 import { createCommandHandlers } from '../src/bridge/commandHandlers'
+import { QUESTION_CARD_SLOT } from '../src/comparison/arrangement'
 import { choicePinId, hideCollapsedContent } from '../src/comparison/comparisonFrames'
 import { REJECTED_OPACITY } from '../src/comparison/settleComparison'
 import { diagramCaptionId, diagramFrameId, diagramNodeId } from '../src/diagram/renderDiagrams'
@@ -89,14 +91,19 @@ async function compareDiagrams(id = 'ingest') {
 
 const html = (text: string) => `<!doctype html><html><body><p>${text}</p></body></html>`
 
-async function comparePrototypes(id = 'login', labels = ['Tabs', 'Single form']) {
+async function comparePrototypes(
+	id = 'login',
+	labels = ['Tabs', 'Single form'],
+	size: { width?: number; height?: number } = {},
+) {
 	for (const [index, label] of labels.entries()) {
 		await handlers['prototype.render']({
 			id: `${id}-${index}`,
 			label,
 			caption: `Variant ${index + 1}`,
 			html: html(label),
-			comparison: { id, index },
+			...size,
+			comparison: { id, index, count: labels.length },
 		})
 	}
 }
@@ -141,17 +148,27 @@ function pinEnds(comparison: string) {
 }
 
 describe('prototype alternatives (compare with html items)', () => {
-	it('puts the prototypes side by side, top-aligned, in their order', async () => {
+	it('stacks wide prototypes in their order, clear of the graph with room for the card', async () => {
 		await drawGraph(['login'])
 		await comparePrototypes()
 		const first = bounds(prototypeShapeId('login-0'))
 		const second = bounds(prototypeShapeId('login-1'))
-		expect(first.minX).toBeGreaterThan(bounds(nodeShapeId('login')).maxX)
-		expect(second.minX).toBe(first.maxX + PROTOTYPE_GAP)
-		expect(second.minY).toBe(first.minY)
+		expect(first.minX).toBeGreaterThan(bounds(nodeShapeId('login')).maxX + QUESTION_CARD_SLOT)
+		expect(second.minX).toBe(first.minX)
+		expect(second.minY).toBe(first.maxY + PROTOTYPE_GAP)
 	})
 
-	it('gets its question card right below the prototypes', async () => {
+	it('puts tall prototypes side by side and wraps a third into the next row', async () => {
+		await comparePrototypes('mobile', ['A', 'B', 'C'], { width: 360, height: 720 })
+		const [a, b, c] = [0, 1, 2].map((index) => bounds(prototypeShapeId(`mobile-${index}`)))
+		if (!a || !b || !c) throw new Error('missing prototype')
+		expect(b.minX).toBe(a.maxX + PROTOTYPE_GAP)
+		expect(b.minY).toBe(a.minY)
+		expect(c.minX).toBe(a.minX)
+		expect(c.minY).toBe(a.maxY + PROTOTYPE_GAP)
+	})
+
+	it('gets its question card left of the prototypes', async () => {
 		await comparePrototypes()
 		await handlers['ask.show']({
 			askId: 'q1',
@@ -160,13 +177,13 @@ describe('prototype alternatives (compare with html items)', () => {
 			recommendation: 1,
 			comparison: 'login',
 		})
-		const row = editor.getShapesPageBounds([
+		const block = editor.getShapesPageBounds([
 			prototypeShapeId('login-0'),
 			prototypeShapeId('login-1'),
 		])
 		const card = bounds(questionCardId('q1'))
-		expect(card.minY).toBeGreaterThan(row?.maxY ?? Number.POSITIVE_INFINITY)
-		expect(Math.abs(card.center.x - (row?.center.x ?? 0))).toBeLessThan(2)
+		expect(card.maxX).toBeLessThan(block?.minX ?? Number.NEGATIVE_INFINITY)
+		expect(card.minY).toBeGreaterThanOrEqual(block?.minY ?? Number.POSITIVE_INFINITY)
 	})
 
 	it('reports the comparison of each prototype in read_canvas', async () => {
@@ -375,7 +392,47 @@ describe('on the live canvas', () => {
 		expect(editor.isShapeHidden(diagramNodeId('comparison', 'ingest', 0, 'api'))).toBe(false)
 	})
 
-	it('moves a growing graph left instead of into the comparison row to its right', async () => {
+	it('keeps the content of a collapsed diagram frame inside, and hidden, when the user moves it', async () => {
+		editor.dispose()
+		editor = createTestEditor({ getShapeVisibility: hideCollapsedContent })
+		handlers = createCommandHandlers(editor)
+		await drawGraph(['ingest'])
+		await compareDiagrams()
+		await settle()
+		const frameId = diagramFrameId('comparison', 'ingest', 0)
+		const api = diagramNodeId('comparison', 'ingest', 0, 'api')
+
+		// What the select tool does when a drag ends: move the frame, then kick
+		// out children that no longer overlap it, which is all of them below the title bar.
+		const frame = editor.getShape<TLFrameShape>(frameId)
+		editor.updateShape<TLFrameShape>({ id: frameId, type: 'frame', x: (frame?.x ?? 0) + 40 })
+		kickoutOccludedShapes(editor, [frameId])
+
+		expect(editor.getShape(api)?.parentId).toBe(frameId)
+		expect(editor.isShapeHidden(api)).toBe(true)
+
+		// Expanded again, the content is where it was in the frame.
+		await settle({ chosen: 'Direct', rejected: [{ label: 'Queued', reason: 'One more service' }] })
+		expect(editor.isShapeHidden(api)).toBe(false)
+	})
+
+	it('does not take a shape dropped on a collapsed diagram frame in, where it would vanish', async () => {
+		editor.dispose()
+		editor = createTestEditor({ getShapeVisibility: hideCollapsedContent })
+		handlers = createCommandHandlers(editor)
+		await drawGraph(['ingest'])
+		await compareDiagrams()
+		await settle()
+		const frame = editor.getShape<TLFrameShape>(diagramFrameId('comparison', 'ingest', 0))
+		if (!frame) throw new Error('no frame')
+
+		expect(editor.getShapeUtil(frame).canReceiveNewChildrenOfType(frame, 'note')).toBe(false)
+		const chosen = editor.getShape<TLFrameShape>(diagramFrameId('comparison', 'ingest', 1))
+		if (!chosen) throw new Error('no frame')
+		expect(editor.getShapeUtil(chosen).canReceiveNewChildrenOfType(chosen, 'note')).toBe(true)
+	})
+
+	it('moves a growing graph left instead of into the comparison or its card slot to its right', async () => {
 		await drawGraph(['a'])
 		await compareDiagrams()
 		const row = bounds(diagramFrameId('comparison', 'ingest', 0))
@@ -390,7 +447,7 @@ describe('on the live canvas', () => {
 			frontier: ['p'],
 		})
 		const graph = editor.getShapesPageBounds(['p', 'q', 'r', 'a'].map((id) => nodeShapeId(id)))
-		expect(graph?.maxX).toBeLessThan(row.minX)
+		expect(graph?.maxX).toBeLessThan(row.minX - QUESTION_CARD_SLOT)
 		expect(bounds(diagramFrameId('comparison', 'ingest', 0))).toEqual(row)
 	})
 })

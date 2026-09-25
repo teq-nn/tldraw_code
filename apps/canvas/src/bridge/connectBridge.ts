@@ -4,13 +4,15 @@ import { answeredQuestionCards, watchQuestionCards } from '../ask/watchQuestionC
 import { ActivityTracker } from '../perception/activity'
 import { pushActivityWhenQuiet } from '../perception/activityPush'
 import { BridgeClient, type BridgeStatus } from './BridgeClient'
-import { createCommandHandlers } from './commandHandlers'
+import { BASELINE_FLAVOUR, type LayoutFlavour } from './layoutFlavours'
 
 export const DEFAULT_BRIDGE_URL = `ws://127.0.0.1:${DEFAULT_BRIDGE_PORT}`
 
 export interface ConnectBridgeOptions {
 	/** Defaults to {@link DEFAULT_BRIDGE_URL}. */
 	url?: string
+	/** Whose command handlers run the commands; defaults to {@link BASELINE_FLAVOUR}. */
+	flavour?: LayoutFlavour
 	onStatusChange?: (status: BridgeStatus) => void
 	/** The server says Claude started or stopped working on a channel push (ADR 0025). */
 	onAgentWorking?: (working: boolean) => void
@@ -28,7 +30,7 @@ export function connectBridge(editor: Editor, options: ConnectBridgeOptions = {}
 	const activity = new ActivityTracker(editor)
 	const client = new BridgeClient({
 		url: options.url ?? DEFAULT_BRIDGE_URL,
-		handlers: createCommandHandlers(editor, { activity }),
+		handlers: (options.flavour ?? BASELINE_FLAVOUR).createHandlers(editor, { activity }),
 		onStatusChange: (next) => {
 			options.onStatusChange?.(next)
 			// The server re-sends the flag when it hears our hello; until then, nothing is known.

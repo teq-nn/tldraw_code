@@ -91,7 +91,7 @@ One run of the `canvas-grilling` skill: Claude maps the plan's decisions as a fr
 _Avoid_: interview, round (the terminal skill's batch of questions)
 
 **Wayfinder session**:
-One run of the `canvas-wayfinder` skill on a wayfinder map: Claude syncs the map to the canvas, claims a frontier ticket and asks its decision in the lightest form (card, diagram comparison or prototype comparison), records every answer on the tracker and syncs again, until the ticket is closed (ADR 0022).
+One run of the `canvas-wayfinder` skill on a wayfinder map: Claude syncs the map to the canvas, claims a frontier ticket and asks its decision in the lightest form (a card by default, a diagram or prototype comparison when seeing the alternatives decides, ADR 0028), records every answer on the tracker and syncs again, until the ticket is closed (ADR 0022).
 _Avoid_: planning session, map session
 
 **No answer yet**:
@@ -109,7 +109,7 @@ The JSON graph a diagram is drawn from: nodes `{ id, label, look? }` and edges `
 _Avoid_: Mermaid, definition, source
 
 **Comparison**:
-2 or 3 alternatives shown side by side by `compare`, each in its own frame, with a question card below asking which to take. All diagrams (one shared layout, differences highlighted, ADR 0015) or all prototypes (ADR 0020). Keyed by an id, usually that of the decision node it settles.
+2 or 3 alternatives shown by `compare`, each in its own frame, arranged in a compact block with a question card on their left asking which to take (ADR 0029). All diagrams (one shared layout, differences highlighted, ADR 0015) or all prototypes (ADR 0020). Keyed by an id, usually that of the decision node it settles.
 _Avoid_: diff view, variants view
 
 **Alternative**:
@@ -187,6 +187,16 @@ _Avoid_: typing indicator, spinner
 **Agent note**:
 A short reply Claude puts on the canvas with `render_note`, next to the shape it answers (`replyTo`) or right of the content. A tldraw note that looks unlike the user's sticky (violet, sans-serif, labelled "Claude"), with role `agent_note`, listed under "Your shapes". Never user activity and never an `&agent` invocation, even if its text contains the tag; keyed by an optional id, rendering again updates it in place (ADR 0026).
 _Avoid_: reply sticky, bot note
+
+### Layout
+
+**Layout flavour**:
+One coherent way for the canvas to place what Claude draws (how graphs re-layout, where new content goes), registered in `apps/canvas/src/bridge/layoutFlavours.ts`. The baseline is today's layout; the canvas runs another with `?layout=<name>` (docs/research/canvas-layout.md §12).
+_Avoid_: layout mode, strategy, style (the house style is dagre's settings)
+
+**Layout benchmark**:
+`pnpm bench:layout`: one scripted session replayed headless for every layout flavour and scored on graph quality, stability, ownership, overlap, attention and footprint, with each flavour's final canvas saved as a snapshot.
+_Avoid_: layout test, eval
 
 ### Prototypes
 

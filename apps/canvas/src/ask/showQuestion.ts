@@ -1,5 +1,6 @@
 import type { CanvasCommandPayload, CanvasCommandResult } from '@tldraw-code/protocol'
 import { Box, createShapeId, type Editor, type TLShape, type TLShapeId } from 'tldraw'
+import { CARD_GAP } from '../comparison/arrangement'
 import { getComparisonFrames } from '../comparison/comparisonFrames'
 import {
 	estimateCardHeight,
@@ -31,9 +32,10 @@ export function getQuestionCards(editor: Editor): QuestionCardShape[] {
  * Show the question card for `askId` (ADR 0006). Idempotent: an existing card
  * for the same askId is kept untouched, so re-asking after a timeout neither
  * resets nor duplicates it. Every other question card is removed first, so
- * only one is ever on the canvas. The card goes below the frames of the
- * comparison it asks about (`compare`), else below the frontier graph if
- * there is one, else where the previous card was, else in the viewport centre.
+ * only one is ever on the canvas. The card goes left of the frames of the
+ * comparison it asks about (`compare`, ADR 0029), or below them when that
+ * space is taken, else below the frontier graph if there is one, else where
+ * the previous card was, else in the viewport centre.
  */
 export function showQuestion(editor: Editor, payload: ShowPayload): ShowResult {
 	const id = questionCardId(payload.askId)
@@ -75,13 +77,21 @@ function placeCard(
 	h: number,
 	comparison: string | undefined,
 ) {
-	// A comparison's question goes right under its frames, diagrams or prototypes (ADR 0015, ADR 0020).
+	// A comparison's question goes beside its frames, diagrams or prototypes, in the slot
+	// kept free on their left (ADR 0029); below them when something took that space.
 	const frames = comparison ? getComparisonFrames(editor, comparison) : []
 	const framesBounds =
 		frames.length > 0
 			? editor.getShapesPageBounds(frames.map((frame) => frame.shape.id))
 			: undefined
 	if (framesBounds) {
+		const beside = new Box(
+			Math.round(framesBounds.minX - CARD_GAP - QUESTION_CARD_WIDTH),
+			Math.round(Math.max(framesBounds.minY, framesBounds.center.y - h / 2)),
+			QUESTION_CARD_WIDTH,
+			h,
+		)
+		if (isFree(editor, beside)) return { x: beside.x, y: beside.y }
 		return {
 			x: Math.round(framesBounds.center.x - QUESTION_CARD_WIDTH / 2),
 			y: Math.round(framesBounds.maxY + GAP_BELOW_GRAPH),
@@ -103,8 +113,20 @@ function placeCard(
 	return { x: Math.round(center.x - QUESTION_CARD_WIDTH / 2), y: Math.round(center.y - h / 2) }
 }
 
+/** No top-level shape on the page comes within half a gap of `box`. */
+function isFree(editor: Editor, box: Box): boolean {
+	const padded = Box.ExpandBy(box, CARD_GAP / 2)
+	return editor
+		.getCurrentPageShapes()
+		.filter((shape) => shape.parentId === editor.getCurrentPageId())
+		.every((shape) => {
+			const bounds = editor.getShapePageBounds(shape.id)
+			return !bounds || !Box.Collides(padded, bounds)
+		})
+}
+
 /** Pan (and zoom out if needed, never in beyond 100 %) so the card is fully visible. */
-function bringIntoView(editor: Editor, id: TLShapeId): void {
+export function bringIntoView(editor: Editor, id: TLShapeId): void {
 	const bounds = editor.getShapePageBounds(id)
 	if (!bounds) return
 	// Keep a margin so the card is not hidden under the toolbar at the viewport edge.

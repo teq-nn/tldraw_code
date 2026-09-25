@@ -127,12 +127,13 @@ export function createMcpServer(bridge: CanvasBridge, options: McpServerOptions 
 	let lastMap: Awaited<ReturnType<typeof resolveMapTarget>> | undefined
 
 	/** Draw a validated graph; collapses the answered question card with it (ADR 0010). */
-	const renderGraph = async (graph: FrontierGraph, frontier: string[]) => {
+	const renderGraph = async (graph: FrontierGraph, frontier: string[], tidy = false) => {
 		const collapseQuestion = asks.answeredQuestion()
 		const result = await bridge.request('graph.render', {
 			...graph,
 			frontier,
 			...(collapseQuestion ? { collapseQuestion } : {}),
+			...(tidy ? { tidy } : {}),
 		})
 		// Collapsed now, or already gone (replaced or deleted by the user): either way done.
 		if (collapseQuestion) asks.forgetAnsweredQuestion(collapseQuestion)
@@ -177,15 +178,26 @@ export function createMcpServer(bridge: CanvasBridge, options: McpServerOptions 
 				'new ones added, and ones missing from this call removed. If you have received the answer to ' +
 				'the question card on the canvas, the card is removed: put the answer into the note of the ' +
 				'decision node it settled.',
-			inputSchema: FrontierGraphShape,
+			inputSchema: {
+				...FrontierGraphShape,
+				tidy: z
+					.boolean()
+					.optional()
+					.describe(
+						'Tidy the graph: lay it out afresh this once, where it is. Where drawn nodes keep their place ' +
+							"(the canvas's user-owned layout), every node moves and the user's notes on a node move " +
+							'with it; elsewhere the graph is laid out afresh on every render anyway. Only when the ' +
+							'user asked for or agreed to a tidy.',
+					),
+			},
 		},
-		async (args) =>
+		async ({ tidy, ...args }) =>
 			withActivity(async () => {
 				const parsed = FrontierGraphSchema.safeParse(args)
 				if (!parsed.success) throw new ToolInputError('invalid_graph', describeIssues(parsed.error))
 				const graph = parsed.data
 				const frontier = computeFrontier(graph)
-				const result = await renderGraph(graph, frontier)
+				const result = await renderGraph(graph, frontier, tidy)
 				return [
 					describeRender(graph.nodes.length, graph.edges.length, result),
 					`Frontier: ${frontier.length > 0 ? frontier.join(', ') : '(empty)'}.`,
@@ -254,7 +266,8 @@ export function createMcpServer(bridge: CanvasBridge, options: McpServerOptions 
 				'may answer freely with a sticky note next to the card. Blocks until the user answers ' +
 				`(up to ${formatDuration(askTimings.timeoutMs)}); then returns "no answer yet" and the card ` +
 				'stays open: call ask again with the same arguments to keep waiting. Only one question at a time; ' +
-				'a different question replaces the open card.',
+				'a different question replaces the open card. This is the default form of a question, design ' +
+				'questions included; use compare when the user has to see the alternatives to choose.',
 			inputSchema: QuestionShape,
 		},
 		async (args, extra) =>
@@ -341,9 +354,11 @@ export function createMcpServer(bridge: CanvasBridge, options: McpServerOptions 
 		{
 			title: 'Compare alternatives and ask',
 			description:
-				'Show 2 or 3 alternatives side by side and ask the user which to take: a question card is ' +
-				'attached below them (via ask), with one button per alternative, your recommendation marked, and "' +
-				`${KEEP_GRILLING_LABEL}". Use it instead of describing alternatives in words. Items are all ` +
+				'Show 2 or 3 alternatives next to each other and ask the user which to take: a question card is ' +
+				'attached beside them (via ask), with one button per alternative, your recommendation marked, and "' +
+				`${KEEP_GRILLING_LABEL}". Use it when the user has to see the alternatives to choose (structures ` +
+				'or flows whose difference is their shape, UIs whose look or feel decides) or asks to see them; ' +
+				'when a few words per option tell them apart, use ask. Items are all ' +
 				'diagrams or all prototypes. For a structure or flow, each item is {label, caption?, spec} with ' +
 				'spec like render_diagram: each gets its own frame, all frames share one layout, and what differs ' +
 				'is highlighted in orange; give the same element the same node id in every alternative (nodes are ' +
@@ -419,7 +434,7 @@ export function createMcpServer(bridge: CanvasBridge, options: McpServerOptions 
 		return describeComparison(input, differences, rendered.frameIds)
 	}
 
-	/** Show prototype alternatives in prototype frames side by side (ADR 0020). */
+	/** Show prototype alternatives in prototype frames in a compact grid (ADR 0020, ADR 0029). */
 	const showPrototypeAlternatives = async (input: CompareInput) => {
 		const lines: string[] = []
 		for (const [index, item] of input.items.entries()) {
@@ -431,14 +446,14 @@ export function createMcpServer(bridge: CanvasBridge, options: McpServerOptions 
 				...(item.caption ? { caption: item.caption } : {}),
 				...(item.width ? { width: item.width } : {}),
 				...(item.height ? { height: item.height } : {}),
-				comparison: { id: input.id, index },
+				comparison: { id: input.id, index, count: input.items.length },
 			})
 			lines.push(
 				`- ${item.label}: prototype "${id}" in shape ${result.shapeId} (viewport ${result.width} x ${result.height} px)`,
 			)
 		}
 		return [
-			`Showing ${input.items.length} prototypes side by side for "${input.id}"; a question card below them ` +
+			`Showing ${input.items.length} prototypes next to each other for "${input.id}"; a question card beside them ` +
 				'asks which to take. The user can click through each one first.',
 			...lines,
 			'A sketch or sticky note on one of them shows up in read_canvas anchored to it; to act on it, ' +
@@ -638,8 +653,8 @@ function describeComparison(
 	frameIds: string[],
 ): string {
 	const lines = [
-		`Showing ${input.items.length} alternatives side by side for "${input.id}" (frames ${frameIds.join(', ')}); ` +
-			'a question card below them asks which to take.',
+		`Showing ${input.items.length} alternatives next to each other for "${input.id}" (frames ${frameIds.join(', ')}); ` +
+			'a question card beside them asks which to take.',
 	]
 	const any = differences.some((d) => d.nodes.length + d.edges.length > 0)
 	if (!any) {
