@@ -114,6 +114,15 @@ describe('sync_wayfinder_map', () => {
 		expect(second.frontier).toEqual(['8', '11'])
 	})
 
+	it('asks the canvas for a tidy only when told to (ADR 0032)', async () => {
+		await sync({ map: STORAGE_MAP })
+		const result = await sync({ tidy: true })
+
+		expect(result.isError).toBeFalsy()
+		expect(renders()[0]?.payload).not.toHaveProperty('tidy')
+		expect(renders()[1]?.payload).toMatchObject({ tidy: true, frontier: ['3', '8', '11'] })
+	})
+
 	it('warns when the issue is not labelled as a wayfinder map', async () => {
 		github.update(STORAGE_MAP, { labels: [] })
 		expect(textOf(await sync({ map: 1 }))).toContain('not labelled wayfinder:map')

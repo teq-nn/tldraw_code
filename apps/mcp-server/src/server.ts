@@ -77,6 +77,15 @@ export const SERVER_INSTRUCTIONS =
 	'draw the map with sync_wayfinder_map instead of render_graph, and call it again after every change ' +
 	'you make to the tickets.'
 
+/** The `tidy` option of the tools that draw the frontier graph (ADR 0032). */
+const TidyShape = z
+	.boolean()
+	.optional()
+	.describe(
+		'Tidy the graph: lay it out afresh this once, where it is. Every node moves, and the ' +
+			"user's notes on a node move with it. Only when the user asked for or agreed to a tidy.",
+	)
+
 /**
  * Build the MCP server with all canvas tools registered. Transport-agnostic:
  * `main.ts` connects it to stdio, tests connect it to an in-memory transport.
@@ -181,13 +190,7 @@ export function createMcpServer(bridge: CanvasBridge, options: McpServerOptions 
 				'decision node it settled.',
 			inputSchema: {
 				...FrontierGraphShape,
-				tidy: z
-					.boolean()
-					.optional()
-					.describe(
-						'Tidy the graph: lay it out afresh this once, where it is. Every node moves, and the ' +
-							"user's notes on a node move with it. Only when the user asked for or agreed to a tidy.",
-					),
+				tidy: TidyShape,
 			},
 		},
 		async ({ tidy, ...args }) =>
@@ -234,9 +237,10 @@ export function createMcpServer(bridge: CanvasBridge, options: McpServerOptions 
 					.describe(
 						'Repository "owner/name" of the map; defaults to the origin remote of the repo the server runs in.',
 					),
+				tidy: TidyShape,
 			},
 		},
-		async ({ map, repo }) =>
+		async ({ map, repo, tidy }) =>
 			withActivity(async () => {
 				if (map === undefined && !lastMap) {
 					throw new ToolInputError(
@@ -249,7 +253,7 @@ export function createMcpServer(bridge: CanvasBridge, options: McpServerOptions 
 				const synced = await syncMap(tracker, target)
 				lastMap = target
 				const { graph, frontier } = synced.derived
-				const result = await renderGraph(graph, frontier)
+				const result = await renderGraph(graph, frontier, tidy)
 				return describeSync(synced, describeRender(graph.nodes.length, graph.edges.length, result))
 			}),
 	)

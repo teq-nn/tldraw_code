@@ -19,7 +19,7 @@ Interview the user relentlessly about a plan until you reach a shared understand
 
 ## The graph
 
-You hold the whole graph and pass all of it on every `render_graph` call.
+You hold the whole graph and pass all of it on every `render_graph` call. Where it goes on the canvas is the `canvas-layout` skill's: load it (the Skill tool with "canvas-layout") before your first `render_graph` and follow it on every render: stable ids, a new node's edge in the same call, the check after each render, and a tidy only when the user asks or agrees.
 
 - **Node**: one decision. `id` a stable slug (`storage`, `auth-provider`), `title` a few words, `status` `open` until answered.
 - **Edge** `{ from, to }`: `from` must be settled before `to` can be asked sensibly. The frontier (open nodes whose blockers are all resolved) is computed for you and listed in the result; it is what you may ask next.

@@ -10,6 +10,7 @@ The `wayfinder` skill defines the map, tickets, claims, the frontier, fog of war
 ## The channel
 
 - **The tickets are the record; the canvas mirrors them.** Every answer changes the tracker (a resolution, a new ticket, a claim), and every tracker change is followed by `sync_wayfinder_map`. The graph never shows anything the tickets do not say. Colours: blue open, amber in progress (claimed), green resolved with its gist, red blocked.
+- **Where things go on the canvas is the `canvas-layout` skill's.** Load it (the Skill tool with "canvas-layout") before the first sync and follow it after every sync: the check after each render, and a tidy (`tidy: true` on the sync) only when the user asks or agrees.
 - **Every question is a ticket's question.** The card on the canvas always asks the decision of one amber node. When a ticket needs a narrower decision first, it becomes a ticket before you ask it.
 - **One question at a time**, one short sentence, 2 to 4 options of a few words, your recommendation marked. The card adds "Keep grilling" itself.
 - **The terminal carries at most one short status line per step.** Everything the user must read goes on the canvas.

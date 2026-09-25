@@ -61,6 +61,10 @@ describe('canvas-grilling skill', () => {
 	it('asks with a question card by default and draws only when seeing decides (ADR 0028)', () => {
 		expect(skill).toContain('A question card is the default')
 	})
+
+	it('places and updates the graph as the canvas-layout skill says (ADR 0032)', () => {
+		expect(skill).toContain('`canvas-layout`')
+	})
 })
 
 describe('canvas-wayfinder skill', () => {
@@ -111,5 +115,9 @@ describe('canvas-wayfinder skill', () => {
 
 	it('asks with a question card by default and draws only when seeing decides (ADR 0028)', () => {
 		expect(text).toContain('A question card is the default')
+	})
+
+	it('places and updates the map as the canvas-layout skill says (ADR 0032)', () => {
+		expect(text).toContain('`canvas-layout`')
 	})
 })

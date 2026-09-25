@@ -195,7 +195,7 @@ How the canvas places what Claude draws (ADR 0032): a decision node, once placed
 _Avoid_: layout flavour, layout mode, auto layout
 
 **Tidy**:
-A one-shot full re-layout of the frontier graph where it is, on the user's request (`render_graph` with `tidy: true`). Every node moves, and the user's notes anchored to a node move with it.
+A one-shot full re-layout of the frontier graph where it is, on the user's request (`render_graph` or `sync_wayfinder_map` with `tidy: true`; the `canvas-layout` skill says when). Every node moves, and the user's notes anchored to a node move with it.
 _Avoid_: re-layout, auto-arrange, clean up
 
 **Layout benchmark**:

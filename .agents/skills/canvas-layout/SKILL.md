@@ -1,0 +1,37 @@
+---
+name: canvas-layout
+description: How to place and update what you draw on the shared tldraw canvas so the user's arrangement survives. Use when drawing or updating the decision graph with `render_graph` or `sync_wayfinder_map`, adding notes or questions beside it, or when the user asks to tidy the canvas.
+---
+
+The canvas is **user-owned space** (ADR 0032): what is on it stays where it was left. The user finds things again by where they are, and their sticky notes annotate a node by lying on or near it (ADR 0008), so a node that moves takes the meaning of their notes with it. The canvas keeps this for you on every `render_graph` and `sync_wayfinder_map`:
+
+- A node you drew before never moves, including one the user dragged somewhere else.
+- A new node goes into free space in the slot right of its blockers (a new blocker left of what it blocks), else the nearest free spot, clear of the user's notes.
+- A node you drop leaves its gap; nothing closes up.
+- A new question card keeps clear of the user's notes.
+
+The price is drift: as the graph grows, edges start to cross and gaps stay open. The remedy is a tidy, and it is the user's call (below).
+
+## Rules
+
+- **Stable ids.** A node's `id` is its place on the canvas. Keep every id you passed before and change `title`, `status` or `note` instead. A new id is a new node in a new place, and the old one's position and the user's notes on it are lost. On a wayfinder map the ids are the ticket numbers, so the tracker keeps them stable for you.
+- **New content beside its subject.** A new node is placed from its edges, so give it the edge from what it is about (its blocker) in the same call that adds it. A node with no edge to anything drawn lands under the graph. Answer a user's note with `render_note` and `replyTo`, so the reply sits next to that note.
+- **The user's arrangement is the layout.** A node the user dragged is where they want it; leave it there. When the graph looks crowded, keep rendering; the fix is a tidy the user agrees to.
+
+## After every render
+
+Call `read_canvas` and look at the screenshot. Done when you have checked that:
+
+- every node you added sits beside the nodes it depends on;
+- nothing you drew covers a user note, drawing or another shape of yours;
+- every user note still lies on or next to the node it was about.
+
+When one of these fails, say what you see in one terminal line; whether to offer a tidy is below.
+
+## Tidy
+
+A tidy lays the whole graph out afresh, once, where it is: it untangles crossings and closes gaps, every node moves, and each user note on or beside a node moves with it, so it stays on its node. It is the one time your call moves the user's shapes, so it is the user's call, never yours alone.
+
+- **Run one** when the user asks for it, in a sticky note ("tidy up") or an answer: call `render_graph` with the whole graph and `tidy: true`, or, when the session works a wayfinder map, call `sync_wayfinder_map` with `tidy: true`. Then check it as after every render.
+- **Offer one** when the check after a render finds drift past the threshold: two or more edge crossings, any edge running right to left, a node of yours over another shape, or a new node placed away from its blockers. Offer with `ask` ("Tidy the graph? Every node moves.", options "Tidy it" and "Leave it"), at most once until the graph drifts further.
+- A tidy is one call: every later render leaves `tidy` out and places in free space again. A declined tidy stays declined: keep rendering in place.
