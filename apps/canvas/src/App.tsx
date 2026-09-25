@@ -6,6 +6,7 @@ import { useCanvasBridge } from './bridge/useCanvasBridge'
 import { CanvasFrameShapeUtil } from './comparison/CanvasFrameShapeUtil'
 import { hideCollapsedContent } from './comparison/comparisonFrames'
 import { BridgeStatusPill } from './components/BridgeStatusPill'
+import { LayoutDemo } from './demo/LayoutDemo'
 import { PrototypeShapeUtil } from './prototype/PrototypeShapeUtil'
 import { openSnapshot } from './snapshot/openSnapshot'
 
@@ -22,13 +23,15 @@ const shapeUtils = [
  * LICENSE-agent-starter-kit.md). The kit's chat panel and LLM worker are
  * replaced by the MCP bridge: Claude Code drives the canvas instead.
  *
- * Two URL parameters: `?layout=<flavour>` runs Claude's commands with that
+ * Three URL parameters: `?layout=<flavour>` runs Claude's commands with that
  * layout flavour (`src/bridge/layoutFlavours.ts`; the baseline by default),
- * and `?snapshot=<url>` shows a saved canvas, such as one the layout
- * benchmark wrote, instead of the live one.
+ * `?snapshot=<url>` shows a saved canvas, such as one the layout benchmark
+ * wrote, instead of the live one, and `?demo` walks through the benchmark's
+ * runs side by side, step by step.
  */
 export function App() {
 	const params = new URLSearchParams(window.location.search)
+	if (params.has('demo')) return <LayoutDemo shapeUtils={shapeUtils} />
 	const snapshot = params.get('snapshot')
 	if (snapshot) return <SnapshotCanvas url={snapshot} />
 	return <LiveCanvas flavour={layoutFlavourNamed(params.get('layout'))} />

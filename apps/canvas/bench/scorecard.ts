@@ -176,7 +176,7 @@ function anchorsKept(step: StepRecord, reference: StepRecord, ids: readonly stri
 }
 
 /** Decision nodes by decision id. */
-function decisionNodes(shapes: CanvasShape[]): Map<string, PageBox> {
+export function decisionNodes(shapes: CanvasShape[]): Map<string, PageBox> {
 	return new Map(
 		shapes.flatMap((shape) =>
 			shape.role === 'decision_node' && shape.decisionId
@@ -198,7 +198,7 @@ function dependencies(shapes: CanvasShape[]): Edge[] {
 }
 
 /** Shapes that take up room of their own: on the page, not inside a frame, and not arrows. */
-function topLevel(shapes: CanvasShape[]): CanvasShape[] {
+export function topLevel(shapes: CanvasShape[]): CanvasShape[] {
 	return shapes.filter((shape) => !shape.frameId && shape.type !== 'arrow')
 }
 
@@ -206,7 +206,7 @@ function labelled(shape: CanvasShape): Labelled {
 	return { label: labelOf(shape), bounds: shape.bounds }
 }
 
-function labelOf(shape: CanvasShape): string {
+export function labelOf(shape: CanvasShape): string {
 	if (shape.owner === 'user') return `user:${shape.id.replace(/^shape:/, '')}`
 	switch (shape.role) {
 		case 'decision_node':

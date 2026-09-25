@@ -1,10 +1,15 @@
 // @vitest-environment jsdom
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
+import { writeLayoutDemo } from '../bench/demo'
 import { runScene, type SceneRun } from '../bench/runScene'
 import { SCENE, USER_SHAPES } from '../bench/scene'
 import { scoreRun } from '../bench/scorecard'
 import { BASELINE_FLAVOUR } from '../src/bridge/layoutFlavours'
 import { hideCollapsedContent } from '../src/comparison/comparisonFrames'
+import type { LayoutDemoManifest } from '../src/demo/layoutDemoManifest'
 import { openSnapshot } from '../src/snapshot/openSnapshot'
 import { createTestEditor } from './createTestEditor'
 
@@ -39,6 +44,32 @@ describe('the layout benchmark scene', () => {
 		for (const id of SCENE.annotations.ids) expect(ids.has(id)).toBe(true)
 		// The note that answered the card went with the card (ADR 0010).
 		expect(ids.has(USER_SHAPES.answer)).toBe(false)
+	})
+})
+
+describe('the layout demo', () => {
+	it('writes every step of a run as a snapshot, with what the step changed', async () => {
+		const sceneRun = await baseline()
+		const dir = mkdtempSync(join(tmpdir(), 'layout-demo-'))
+		try {
+			const card = scoreRun(sceneRun, SCENE)
+			writeLayoutDemo(dir, [{ run: sceneRun, scene: SCENE, card, summary: 'Today' }])
+			const manifest = JSON.parse(
+				readFileSync(join(dir, 'manifest.json'), 'utf8'),
+			) as LayoutDemoManifest
+			expect(manifest.steps.map((step) => step.name)).toEqual(SCENE.steps.map((s) => s.name))
+			const [demoRun] = manifest.runs
+			expect(demoRun?.steps).toHaveLength(SCENE.steps.length)
+			for (const step of demoRun?.steps ?? [])
+				expect(existsSync(join(dir, step.snapshot))).toBe(true)
+			// The first render adds nothing and moves nothing; the update after it re-lays the graph out.
+			expect(demoRun?.steps[0]?.highlights.moved).toEqual([])
+			const update = demoRun?.steps[3]?.highlights
+			expect(update?.added.length).toBe(3)
+			expect(update?.moved.length).toBeGreaterThan(0)
+		} finally {
+			rmSync(dir, { recursive: true, force: true })
+		}
 	})
 })
 

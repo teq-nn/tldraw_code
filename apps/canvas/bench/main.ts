@@ -7,10 +7,13 @@
  *   pnpm bench:layout              # every flavour
  *   pnpm bench:layout baseline     # only the named ones
  *
+ * It also writes every run's canvas after every step for the layout demo
+ * (`?demo` on the canvas), which walks through the runs side by side.
+ *
  * Flavours are registered in `src/bridge/layoutFlavours.ts`. Next to them
  * runs `user-owned+tidy`: F2 on the scene with a tidy after step 7 (#29).
  */
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { JSDOM } from 'jsdom'
@@ -37,6 +40,7 @@ const { LAYOUT_FLAVOURS } = await import('../src/bridge/layoutFlavours')
 const { runScene } = await import('./runScene')
 const { SCENE, SCENE_WITH_TIDY } = await import('./scene')
 const { formatComparison, formatScorecard, scoreRun } = await import('./scorecard')
+const { writeLayoutDemo } = await import('./demo')
 
 /** Every run: each flavour on the scene, and F2 on the scene with a tidy (#29). */
 const RUNS = [
@@ -65,10 +69,12 @@ const runs = RUNS.filter((run) => wanted.length === 0 || wanted.includes(run.nam
 
 mkdirSync(SNAPSHOT_DIR, { recursive: true })
 const cards = []
+const demoRuns = []
 for (const { name, flavour, scene, summary } of runs) {
 	const run = await runScene(flavour, scene, name)
 	const card = scoreRun(run, scene)
 	cards.push(card)
+	demoRuns.push({ run, scene, card, summary })
 	const file = join(SNAPSHOT_DIR, `${name}.tldr`)
 	writeFileSync(file, run.snapshot)
 	console.log(`\n=== Layout flavour "${name}": ${summary}\n`)
@@ -83,5 +89,10 @@ if (cards.length > 1) {
 	console.log('\n=== All flavours (aggregates)\n')
 	console.log(formatComparison(cards))
 }
+const demoDir = join(SNAPSHOT_DIR, 'demo')
+rmSync(demoDir, { recursive: true, force: true })
+mkdirSync(demoDir, { recursive: true })
+writeLayoutDemo(demoDir, demoRuns)
+console.log(`\nStep-by-step demo of every run: pnpm dev, then ${CANVAS_URL}/?demo`)
 // jsdom's animation frames and tldraw's timers would keep the process alive.
 process.exit(0)

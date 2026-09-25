@@ -35,6 +35,8 @@ export interface StepRecord {
 	userShapesMoved: string[]
 	/** Bounds of the step's new content and of what it is about. */
 	focus?: { content: PageBox; subject: PageBox }
+	/** The canvas after this step as a `.tldr` file, for the layout demo. */
+	snapshot: string
 }
 
 export interface SceneRun {
@@ -102,9 +104,14 @@ export async function runScene(
 				calls,
 				userShapesMoved: [...userShapesMoved],
 				...(content && subject ? { focus: { content, subject } } : {}),
+				snapshot: await serializeTldrawJson(editor),
 			})
 		}
-		return { flavour: name, steps, snapshot: await serializeTldrawJson(editor) }
+		return {
+			flavour: name,
+			steps,
+			snapshot: steps.at(-1)?.snapshot ?? (await serializeTldrawJson(editor)),
+		}
 	} finally {
 		stopWatching()
 		editor.dispose()

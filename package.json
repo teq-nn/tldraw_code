@@ -13,6 +13,7 @@
 		"smoke": "tsx scripts/smoke.ts",
 		"demo:wayfinder": "tsx scripts/wayfinder-demo.ts",
 		"bench:layout": "tsx apps/canvas/bench/main.ts",
+		"demo:layout": "pnpm bench:layout && pnpm dev",
 		"build": "pnpm -r build",
 		"typecheck": "tsc -p tsconfig.json && pnpm -r typecheck",
 		"lint": "biome check .",

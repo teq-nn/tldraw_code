@@ -48,6 +48,8 @@ export interface SceneContext {
 export interface SceneStep {
 	/** Short name for the scorecard's column. */
 	name: string
+	/** What happens in this step, in a sentence, for the layout demo. */
+	description: string
 	run(context: SceneContext): Promise<void>
 	/**
 	 * The content this step put on the canvas for the user to look at, and
@@ -368,12 +370,15 @@ export const SCENE: Scene = {
 	steps: [
 		{
 			name: 'graph',
+			description: 'Claude renders the decision graph: 12 nodes, 14 dependencies, 3 resolved.',
 			async run(context) {
 				await renderGraph(context, firstGraph)
 			},
 		},
 		{
 			name: 'user',
+			description:
+				'The user drags storage up and billing down, sticks a note on schema, one between api and auth, one far away, and draws an arrow from that one to release.',
 			async run({ editor }) {
 				// Both drags go to free space, so the user's own moves overlap nothing.
 				drag(editor, nodeShapeId('storage'), 0, -150)
@@ -395,6 +400,8 @@ export const SCENE: Scene = {
 		},
 		{
 			name: 'ask',
+			description:
+				'Claude asks about auth with a question card; the user answers with a sticky note beside it.',
 			async run(context) {
 				await context.claude('ask.show', {
 					askId: AUTH_ASK,
@@ -416,12 +423,16 @@ export const SCENE: Scene = {
 		},
 		{
 			name: 'update',
+			description:
+				'Claude updates the graph: auth resolved, 3 nodes added (one a new blocker upstream, shifting ranks), 1 removed; the answered card collapses.',
 			async run(context) {
 				await renderGraph(context, secondGraph, { collapseQuestion: AUTH_ASK })
 			},
 		},
 		{
 			name: 'diagrams',
+			description:
+				'Claude compares 3 diagrams of the API write path (one with a different edge order) and asks which; the user picks Queued.',
 			async run(context) {
 				const specs = apiFlows.map((item) => item.spec)
 				const differences = diffAlternatives(specs)
@@ -455,6 +466,8 @@ export const SCENE: Scene = {
 		},
 		{
 			name: 'prototypes',
+			description:
+				'Claude compares 2 phone prototypes for the sync status; the user sticks a note on Banner and picks it.',
 			async run(context) {
 				for (const [index, screen] of syncScreens.entries()) {
 					await context.claude('prototype.render', {
@@ -491,6 +504,8 @@ export const SCENE: Scene = {
 		},
 		{
 			name: 'settle',
+			description:
+				'Claude settles both comparisons, replies to the far note, and updates the graph with 2 more nodes.',
 			async run(context) {
 				await context.claude('comparison.settle', {
 					id: API_FLOW,
@@ -521,6 +536,8 @@ export const SCENE: Scene = {
 		},
 		{
 			name: 'grow',
+			description:
+				'Claude asks how to release v1 and, with that card still open, adds 6 nodes after release: the graph grows.',
 			async run(context) {
 				await context.claude('ask.show', {
 					askId: RELEASE_ASK,
@@ -549,6 +566,8 @@ export const SCENE_WITH_TIDY: Scene = {
 		...SCENE.steps.slice(0, 7),
 		{
 			name: 'tidy',
+			description:
+				'The user asked for a tidy: Claude re-renders the same graph with tidy: true, a full re-layout once.',
 			async run(context) {
 				await renderGraph(context, thirdGraph, { tidy: true })
 			},

@@ -295,3 +295,238 @@
 .prototype-frame--rejected .prototype-frame__kind {
 	color: hsl(220, 6%, 45%);
 }
+
+/* Layout demo (?demo): the benchmark's runs side by side, step by step */
+
+.layout-demo {
+	position: fixed;
+	inset: 0;
+	display: flex;
+	flex-direction: column;
+	font-family: var(--tl-font-sans, sans-serif);
+	font-size: 13px;
+	background: hsl(220, 10%, 92%);
+	color: hsl(220, 10%, 15%);
+}
+
+.layout-demo__header {
+	padding: 8px 12px;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	background: white;
+	box-shadow: 0 1px 3px hsla(0, 0%, 0%, 0.15);
+	z-index: 1;
+}
+
+.layout-demo__steps {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+}
+
+.layout-demo button {
+	font: inherit;
+	border: 1px solid hsl(220, 10%, 80%);
+	background: white;
+	border-radius: 6px;
+	padding: 3px 9px;
+	cursor: pointer;
+}
+
+.layout-demo button:disabled {
+	opacity: 0.4;
+	cursor: default;
+}
+
+.layout-demo__steps button[data-active="true"] {
+	background: hsl(215, 80%, 45%);
+	border-color: hsl(215, 80%, 45%);
+	color: white;
+}
+
+.layout-demo__description {
+	margin: 0;
+	font-size: 14px;
+}
+
+.layout-demo__legend {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 12px;
+	align-items: center;
+	font-size: 12px;
+}
+
+.layout-demo__legend span[data-kind]::before {
+	content: "";
+	display: inline-block;
+	width: 12px;
+	height: 12px;
+	margin-right: 4px;
+	vertical-align: -2px;
+	border-radius: 2px;
+	border: 2px solid var(--swatch);
+	background: color-mix(in srgb, var(--swatch) 25%, transparent);
+}
+
+.layout-demo__legend span[data-kind="moved"] {
+	--swatch: hsl(215, 80%, 50%);
+}
+.layout-demo__legend span[data-kind="added"] {
+	--swatch: hsl(140, 60%, 40%);
+}
+.layout-demo__legend span[data-kind="overlap"] {
+	--swatch: hsl(0, 80%, 50%);
+}
+.layout-demo__legend span[data-kind="anchor"] {
+	--swatch: hsl(30, 95%, 50%);
+}
+.layout-demo__legend span[data-kind="user"] {
+	--swatch: hsl(280, 60%, 50%);
+}
+
+.layout-demo__keys {
+	margin-left: auto;
+	color: hsl(220, 10%, 45%);
+}
+
+.layout-demo__grid {
+	flex: 1;
+	min-height: 0;
+	display: grid;
+	gap: 8px;
+	padding: 8px;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	grid-auto-rows: minmax(0, 1fr);
+}
+
+.layout-demo__grid[data-count="1"] {
+	grid-template-columns: minmax(0, 1fr);
+}
+
+.layout-demo__panel {
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+	background: white;
+	border-radius: 8px;
+	overflow: hidden;
+	box-shadow: 0 1px 3px hsla(0, 0%, 0%, 0.15);
+}
+
+.layout-demo__panel-header {
+	display: flex;
+	gap: 8px;
+	align-items: baseline;
+	padding: 6px 8px 0;
+	min-width: 0;
+}
+
+.layout-demo .layout-demo__title {
+	white-space: nowrap;
+	font-weight: 600;
+	font-size: 14px;
+}
+
+.layout-demo__summary {
+	color: hsl(220, 10%, 45%);
+	font-size: 12px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.layout-demo__stats,
+.layout-demo__totals {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	padding: 6px 8px;
+}
+
+.layout-demo__totals summary {
+	cursor: pointer;
+	color: hsl(220, 10%, 45%);
+	font-size: 12px;
+	margin-right: 4px;
+}
+
+.layout-demo__stat {
+	font-size: 12px;
+	padding: 1px 7px;
+	border-radius: 999px;
+	background: hsl(220, 10%, 94%);
+}
+
+.layout-demo__stat[data-bad="true"] {
+	background: hsl(0, 85%, 92%);
+	color: hsl(0, 70%, 35%);
+}
+
+.layout-demo__canvas {
+	position: relative;
+	flex: 1;
+	min-height: 0;
+	border-top: 1px solid hsl(220, 10%, 90%);
+}
+
+.layout-demo__message {
+	position: absolute;
+	inset: 0;
+	display: grid;
+	place-items: center;
+	padding: 16px;
+	font-family: var(--tl-font-sans, sans-serif);
+}
+
+.layout-demo__highlights {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	pointer-events: none;
+}
+
+.layout-demo__highlights rect,
+.layout-demo__highlights line {
+	stroke-width: 3px;
+}
+
+.layout-demo__ghost {
+	fill: none;
+	stroke: hsl(215, 80%, 50%);
+	stroke-dasharray: 6 4;
+}
+
+.layout-demo__moved {
+	fill: hsla(215, 80%, 50%, 0.2);
+	stroke: hsl(215, 80%, 50%);
+}
+
+.layout-demo__move-line {
+	stroke: hsl(215, 80%, 50%);
+	stroke-dasharray: 2 4;
+}
+
+.layout-demo__added {
+	fill: hsla(140, 60%, 40%, 0.15);
+	stroke: hsl(140, 60%, 40%);
+}
+
+.layout-demo__overlap {
+	fill: hsla(0, 80%, 50%, 0.35);
+	stroke: hsl(0, 80%, 50%);
+}
+
+.layout-demo__anchor {
+	fill: none;
+	stroke: hsl(30, 95%, 50%);
+	stroke-width: 5px;
+}
+
+.layout-demo__user {
+	fill: none;
+	stroke: hsl(280, 60%, 50%);
+	stroke-dasharray: 8 4;
+}
