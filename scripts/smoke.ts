@@ -1,7 +1,9 @@
 /**
  * End-to-end smoke test of the bridge without Claude Code: spawns the MCP
- * server over stdio (exactly as Claude Code would), waits for the canvas tab to
- * connect, then calls `canvas_smoke_test`. Run `pnpm dev` and open the canvas first.
+ * server over stdio (exactly as Claude Code would), waits for the canvas to
+ * connect, then calls `canvas_smoke_test`. Have tldraw offline running first
+ * (default backend; `pnpm build:board-script` once if you have not), or, on
+ * the `CANVAS_BACKEND=vite` fallback, run `pnpm dev` and open the canvas.
  *
  *   pnpm smoke ["optional label"]
  */

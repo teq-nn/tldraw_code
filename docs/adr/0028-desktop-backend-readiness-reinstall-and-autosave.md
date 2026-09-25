@@ -37,5 +37,5 @@ Verified live against the running app (tldraw offline already open, a throwaway 
 ## Consequences
 
 - Every command in desktop mode costs at least two local file reads (the built bundle, the installed files) before it reaches the canvas; negligible next to the bridge's own round trip, and zero extra network calls on the fast path.
-- `connectTimeoutMs` (default 5 s) is also, in effect, how long a tool call can block *in addition to* the bridge's own request timeout when tldraw offline is slow to reopen a document — acceptable for a local dev tool, revisit if it becomes the default backend.
+- `connectTimeoutMs` (default 5 s) is also, in effect, how long a tool call can block *in addition to* the bridge's own request timeout when tldraw offline is slow to reopen a document — acceptable for a local dev tool; **#19 made this the default backend**, so this now applies to every session by default rather than only opt-in ones, still unchanged from its original 5 s.
 - The "app not running" and "document not open" cases share one message; a future ticket that wants to tell them apart (e.g. to suggest `docs/create` directly) will need to distinguish them by inspecting the underlying cause, which today's message only quotes, not structures.

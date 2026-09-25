@@ -6,8 +6,12 @@
  * (CANVAS_TRACKER_FIXTURE, ADR 0023); the script's tracker writes (claim,
  * close, Decisions so far, new tickets) edit that file.
  *
- *   pnpm dev                # in one terminal; open http://127.0.0.1:5173
- *   pnpm demo:wayfinder     # in another
+ *   pnpm install
+ *   pnpm build:board-script  # once, or after changing apps/canvas/src
+ *   pnpm demo:wayfinder      # with tldraw offline running: installs the canvas and plays the session
+ *
+ * Fallback (CANVAS_BACKEND=vite): `pnpm dev` in one terminal, open
+ * http://127.0.0.1:5173, then `CANVAS_BACKEND=vite pnpm demo:wayfinder` in another.
  *
  * The session: the map "Settings sync" has three tickets. The first is a
  * structure question, asked as a comparison of two data-flow diagrams; the
@@ -186,7 +190,7 @@ for (;;) {
 		break
 	} catch (error) {
 		if (!String(error).includes('not_connected') || Date.now() > deadline) throw error
-		status('Waiting for the canvas: run `pnpm dev` and open http://127.0.0.1:5173')
+		status(`Waiting for the canvas: ${error}`)
 		await new Promise((resolve) => setTimeout(resolve, 1000))
 	}
 }

@@ -1,5 +1,6 @@
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { DEFAULT_BRIDGE_PORT } from '@tldraw-code/protocol'
+import { resolveCanvasBackend } from './backend'
 import { CanvasBridge } from './bridge'
 import { createDesktopReadiness, DesktopCanvasBridge } from './desktop'
 import { createMcpServer } from './server'
@@ -8,13 +9,15 @@ import { createMcpServer } from './server'
 const log = (message: string) => process.stderr.write(`[tldraw-canvas] ${message}\n`)
 
 const port = Number(process.env.CANVAS_BRIDGE_PORT ?? DEFAULT_BRIDGE_PORT)
-const desktopBackend = process.env.CANVAS_BACKEND === 'desktop'
-// CANVAS_BACKEND=desktop (ticket #16): the canvas runs as a tldraw offline
-// board script instead of the Vite app. The protocol and the WebSocket
-// server below are unchanged either way — DesktopCanvasBridge only wraps
-// `request` to keep the installed script current and the file saved
-// (ticket #17); it is the board script that connects, exactly like the
-// Vite canvas does over ws://127.0.0.1:<CANVAS_BRIDGE_PORT>.
+// tldraw offline is the default backend (ticket #19); CANVAS_BACKEND=vite is
+// the explicit fallback to the Vite app, kept until it is retired. Either
+// way the canvas runs as a tldraw offline board script instead of the Vite
+// app when `desktopBackend` is true. The protocol and the WebSocket server
+// below are unchanged either way — DesktopCanvasBridge only wraps `request`
+// to keep the installed script current and the file saved (ticket #17); it
+// is the board script that connects, exactly like the Vite canvas does over
+// ws://127.0.0.1:<CANVAS_BRIDGE_PORT>.
+const desktopBackend = resolveCanvasBackend(process.env.CANVAS_BACKEND) === 'desktop'
 const desktopReadiness = desktopBackend ? createDesktopReadiness({ log }) : undefined
 const bridge = desktopReadiness
 	? new DesktopCanvasBridge({ port, log, readiness: desktopReadiness })

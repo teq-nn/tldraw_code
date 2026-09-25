@@ -8,6 +8,7 @@
 	},
 	"scripts": {
 		"dev": "pnpm --filter @tldraw-code/canvas dev",
+		"build:board-script": "pnpm --filter @tldraw-code/canvas build:board-script",
 		"mcp": "tsx apps/mcp-server/src/main.ts",
 		"smoke": "tsx scripts/smoke.ts",
 		"demo:wayfinder": "tsx scripts/wayfinder-demo.ts",

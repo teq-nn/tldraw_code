@@ -143,6 +143,30 @@ describe('DesktopReadiness', () => {
 		expect(client.created.length).toBe(createdAfterInstall)
 	})
 
+	it('wraps a missing/unbuilt bundle into a clear, actionable CanvasBridgeError', async () => {
+		const { client } = harness()
+		const readiness = new DesktopReadiness({
+			client,
+			docName: 'tldraw-code session',
+			readBundle: async () => {
+				throw new Error(
+					'the canvas board script is not built (looked in .../dist-board-script): run ' +
+						'"pnpm --filter @tldraw-code/canvas build:board-script" first',
+				)
+			},
+			readFile: async () => {
+				throw new Error('ENOENT')
+			},
+			writeFile: async () => {},
+			sleep: async () => {},
+			connectPollIntervalMs: 0,
+			connectTimeoutMs: 50,
+		})
+
+		await expect(readiness.ensureInstalled()).rejects.toThrow(CanvasBridgeError)
+		await expect(readiness.ensureInstalled()).rejects.toThrow(/build:board-script/)
+	})
+
 	it('save() sends helpers.saveDoc() for the resolved session doc, and is a no-op before one exists', async () => {
 		const { client, readiness } = harness()
 

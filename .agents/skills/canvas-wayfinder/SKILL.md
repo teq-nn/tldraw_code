@@ -32,7 +32,7 @@ Pick the form that makes the user read least, per question:
 
 ## The session loop
 
-1. **Load.** Call `sync_wayfinder_map` with the map's number or URL. If the result says `not_connected`, write one terminal line asking the user to run `pnpm dev` and open http://127.0.0.1:5173, then sync again. Done when the map is on the canvas and its frontier is listed in the result.
+1. **Load.** Call `sync_wayfinder_map` with the map's number or URL. If the result says `not_connected`, its message already says what to do (start tldraw offline and open the session document, or — only with `CANVAS_BACKEND=vite` — run `pnpm dev` and open http://127.0.0.1:5173); relay that one line in the terminal, then sync again. Done when the map is on the canvas and its frontier is listed in the result.
 2. **Choose.** Call `read_canvas`. The ticket is the one the user named, else a frontier node the user marked (a sticky note, drawing or arrow anchored to it), else the first frontier ticket in the sync result. An amber ticket claimed by you is an interrupted session: continue it.
 3. **Claim.** Assign the ticket to yourself on the tracker, then sync. Done when its node is amber.
 4. **Look.** Read the ticket's body and whatever related or closed tickets it needs (zoom on demand), and call `read_canvas` before every question. A mark on a node or alternative is the user's comment on it.

@@ -126,7 +126,7 @@ export class DesktopReadiness {
 	 * the first tool call.
 	 */
 	async ensureInstalled(): Promise<DesktopInstallResult> {
-		const bundle = await this.readBundle()
+		const bundle = await this.readBundleOrThrow()
 		if (!(this.session && (await this.filesMatch(bundle, this.session.workspace)))) {
 			const doc = await this.resolveDoc()
 			const workspace = await this.client.scriptWorkspace(doc.id)
@@ -156,6 +156,24 @@ export class DesktopReadiness {
 				`could not save "${this.session.docName}" after a canvas write: ` +
 					(error instanceof Error ? error.message : String(error)),
 			)
+		}
+	}
+
+	/**
+	 * tldraw offline is the default backend now (ticket #19), so a bundle
+	 * that was never built (`readBoardScriptBundle`'s own actionable message)
+	 * is a first-run condition worth reporting the same clear way as every
+	 * other bridge failure, not an opaque thrown `Error` a tool call rethrows
+	 * unformatted.
+	 */
+	private async readBundleOrThrow(): Promise<BoardScriptBundle> {
+		try {
+			return await this.readBundle()
+		} catch (error) {
+			throw new CanvasBridgeError({
+				code: BridgeErrorCode.NotConnected,
+				message: error instanceof Error ? error.message : String(error),
+			})
 		}
 	}
 

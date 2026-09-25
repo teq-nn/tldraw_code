@@ -29,7 +29,7 @@ You hold the whole graph and pass all of it on every `render_graph` call.
 
 ## The session loop
 
-1. **Map.** Read the topic, explore the code and docs, and draft the design tree as nodes and edges. Call `render_graph`. Done when every decision you can already see is a node, with its dependencies as edges. If the result says `not_connected`, write one terminal line asking the user to run `pnpm dev` and open http://127.0.0.1:5173, then call `render_graph` again.
+1. **Map.** Read the topic, explore the code and docs, and draft the design tree as nodes and edges. Call `render_graph`. Done when every decision you can already see is a node, with its dependencies as edges. If the result says `not_connected`, its message already says what to do (start tldraw offline and open the session document, or — only with `CANVAS_BACKEND=vite` — run `pnpm dev` and open http://127.0.0.1:5173); relay that one line in the terminal, then call `render_graph` again.
 2. **Look.** Call `read_canvas` before every question. A sticky note, drawing or arrow the user put on or next to a decision node (its anchor) is the user's comment on it; a mark on a frontier node means "ask this next". Fold what you learn into the graph.
 3. **Pick.** Choose one frontier node: the one the user marked, else the one whose answer unblocks the most.
 4. **Ask.** Call `ask` about that node, or `compare` with the node's id as the comparison id when it is a choice between structures or flows (diagram items) or between UIs (html items).

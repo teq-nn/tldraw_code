@@ -6,27 +6,38 @@ Canvas-first grilling and wayfinder sessions with Claude Code: Claude draws deci
 
 | Path | What |
 | --- | --- |
-| `apps/canvas` | Vite + React + tldraw app, derived from the tldraw Agent Starter Kit ([ADR 0003](docs/adr/0003-agent-starter-kit-fork-strategy.md)) |
-| `apps/mcp-server` | Local MCP server (stdio) hosting the WebSocket bridge ([ADR 0001](docs/adr/0001-mcp-server-in-typescript-on-node.md)) |
+| `apps/canvas` | React + tldraw canvas, derived from the tldraw Agent Starter Kit ([ADR 0003](docs/adr/0003-agent-starter-kit-fork-strategy.md)); built either as a [tldraw offline](https://tldraw.dev) board script (default, `apps/canvas/dist-board-script`, [ADR 0027](docs/adr/0027-canvas-as-a-board-script-in-tldraw-offline.md)) or, with `CANVAS_BACKEND=vite`, as the original Vite app |
+| `apps/mcp-server` | Local MCP server (stdio) hosting the WebSocket bridge ([ADR 0001](docs/adr/0001-mcp-server-in-typescript-on-node.md)) and, for the tldraw offline backend, `apps/mcp-server/src/desktop` (installs and keeps the board script current via tldraw offline's local Agent API, [ADR 0027](docs/adr/0027-canvas-as-a-board-script-in-tldraw-offline.md), [ADR 0028](docs/adr/0028-desktop-backend-readiness-reinstall-and-autosave.md)) |
 | `packages/protocol` | Bridge envelope schema and command catalog shared by both ([ADR 0002](docs/adr/0002-bridge-topology-and-envelope-schema.md)) |
 | `.agents/skills/canvas-grilling` | The canvas grilling skill (linked from `.claude/skills`) ([ADR 0011](docs/adr/0011-canvas-grilling-skill.md)) |
 | `.agents/skills/canvas-wayfinder` | The canvas wayfinder skill (linked from `.claude/skills`) ([ADR 0022](docs/adr/0022-canvas-wayfinder-skill.md)) |
 | `scripts/wayfinder-demo.ts` | A scripted wayfinder session against a fixture tracker (`pnpm demo:wayfinder`, [ADR 0023](docs/adr/0023-fixture-tracker-and-scripted-wayfinder-demo.md)) |
 
 ```
-Claude Code --stdio/MCP--> apps/mcp-server --WebSocket ws://127.0.0.1:4477--> apps/canvas (browser tab)
+Claude Code --stdio/MCP--> apps/mcp-server --WebSocket ws://127.0.0.1:4477--> tldraw offline (board script, default)
+                                                                           `-> apps/canvas (browser tab, CANVAS_BACKEND=vite)
 ```
 
 ## Running it
 
-Requirements: Node >= 22 and pnpm 10 (`corepack enable`).
+Requirements: Node >= 22 and pnpm 10 (`corepack enable`), and [tldraw offline](https://tldraw.dev) installed and running. The canvas lives inside it as a board script — no Vite dev server, no browser tab.
 
 ```sh
 pnpm install
+pnpm build:board-script   # builds apps/canvas/dist-board-script; rerun after changing apps/canvas/src
+```
+
+With tldraw offline running, start Claude Code in the repo root. It picks up the `tldraw-canvas` MCP server from [`.mcp.json`](.mcp.json) (approve it when asked; check with `/mcp`). The server finds or creates a session document ("tldraw-code session" by default) through tldraw offline's local Agent API, installs the canvas into it as a board script, and opens it there — you don't open anything yourself. Ask Claude to call the `canvas_smoke_test` tool and a labelled rectangle appears in the middle of the canvas.
+
+The bridge pill at the top of the canvas turns green ("Claude Code connected") once the board script has connected. On the very first install, tldraw offline's own log may briefly show a line like "Editor not mounted" while the board script waits for the editor to finish mounting; it is transient and clears itself once the canvas connects, so it is not a sign anything is wrong ([ADR 0028](docs/adr/0028-desktop-backend-readiness-reinstall-and-autosave.md)). The MCP server also keeps the installed script current with `apps/canvas/dist-board-script` and the document saved after every write, so quitting and reopening tldraw offline picks the session back up where it left off. If a tool reports `not_connected`, the error names what to do (start tldraw offline and open the session document, or run `pnpm build:board-script` if it was never built). Details: [ADR 0027](docs/adr/0027-canvas-as-a-board-script-in-tldraw-offline.md) (the board script), [ADR 0028](docs/adr/0028-desktop-backend-readiness-reinstall-and-autosave.md) (reconnecting, reinstalling, autosave).
+
+**Fallback: the Vite app.** Set `CANVAS_BACKEND=vite` (e.g. `CANVAS_BACKEND=vite claude` in the repo root, so the MCP server subprocess inherits it) to run the canvas as a browser tab instead of a tldraw offline board script:
+
+```sh
 pnpm dev            # canvas at http://127.0.0.1:5173 - open it in your browser
 ```
 
-Then, in another terminal, start Claude Code in the repo root. It picks up the `tldraw-canvas` MCP server from [`.mcp.json`](.mcp.json) (approve it when asked; check with `/mcp`). The pill at the top of the canvas turns green ("Claude Code connected") once the server is running and the tab has connected. Ask Claude to call the `canvas_smoke_test` tool and a labelled rectangle appears in the middle of the canvas.
+Everything else below — the tools, the skills, the configuration — is the same on either backend; only how the canvas gets on screen differs.
 
 To have Claude react to what you put on the canvas without prompting it in the terminal, start Claude Code with the server opted in as a channel (a Claude Code research preview; it asks for confirmation):
 
@@ -53,7 +64,7 @@ The terminal only shows tool calls and a short status line; there is nothing to 
 
 A wayfinder map is an issue on the tracker (labelled `wayfinder:map`) whose child issues are decision tickets; see the [`wayfinder`](.agents/skills/wayfinder/SKILL.md) skill for how to chart one. To work through it on the canvas, end to end:
 
-1. **Start the canvas**: `pnpm install`, then `pnpm dev`, and open http://127.0.0.1:5173.
+1. **Set up the canvas**: `pnpm install`, then `pnpm build:board-script` (see [Running it](#running-it); with tldraw offline running, no Vite server or browser tab needed — or `pnpm dev` and open http://127.0.0.1:5173 with the `CANVAS_BACKEND=vite` fallback).
 2. **Start Claude Code** in the repo root and approve the `tldraw-canvas` MCP server; the pill on the canvas turns green. The tracker sync reads GitHub with `GH_TOKEN`, `GITHUB_TOKEN` or your `gh` login (see Configuration).
 3. **Ask for it**: "work through wayfinder map #12 on the canvas" (or `/canvas-wayfinder #12`). The [`canvas-wayfinder`](.agents/skills/canvas-wayfinder/SKILL.md) skill takes over:
    - The map appears as a frontier graph (`sync_wayfinder_map`): resolved tickets green with their gist, the frontier highlighted in blue, blocked tickets red. To choose the ticket, stick a note on a frontier node; otherwise Claude takes the first one.
@@ -63,7 +74,7 @@ A wayfinder map is an issue on the tracker (labelled `wayfinder:map`) whose chil
    - When the ticket is closed, a card offers the next frontier ticket. "Stop here" ends the session with the map on the canvas; the tickets hold every decision.
 4. **Resume later** the same way: the sync redraws the map from the tickets, and a ticket still claimed by you is where the session continues.
 
-**Try it without a map or Claude Code**: with `pnpm dev` running and the canvas open, run `pnpm demo:wayfinder`. The script plays Claude over stdio against the real MCP server with a fixture map "Settings sync" (tickets in a temporary JSON file, no GitHub writes): a data-flow question as a diagram comparison, then a settings-page question as a prototype comparison, with the choices settled, the tickets closed and the map re-synced after each answer. You answer on the canvas; the terminal logs each tracker write. Details: [ADR 0023](docs/adr/0023-fixture-tracker-and-scripted-wayfinder-demo.md).
+**Try it without a map or Claude Code**: with tldraw offline running (or, on the `CANVAS_BACKEND=vite` fallback, `pnpm dev` running and the canvas open), run `pnpm demo:wayfinder`. The script plays Claude over stdio against the real MCP server with a fixture map "Settings sync" (tickets in a temporary JSON file, no GitHub writes): a data-flow question as a diagram comparison, then a settings-page question as a prototype comparison, with the choices settled, the tickets closed and the map re-synced after each answer. You answer on the canvas; the terminal logs each tracker write. Details: [ADR 0023](docs/adr/0023-fixture-tracker-and-scripted-wayfinder-demo.md).
 
 ## The canvas tools
 
@@ -85,13 +96,15 @@ To answer you on the canvas, Claude calls `render_note` with a short `text` (at 
 
 To show a UI, Claude calls `render_prototype` with a `label` and `html`: one self-contained HTML document with all CSS and JS inline (Claude copies the repo's own styles into it so it looks like the real app). It appears in a prototype frame, titled with the label and an optional one-sentence `caption`, to the right of what is on the page; `width` and `height` set its viewport (default 480 x 360). Click through it with the select tool; switch to the draw or note tool to scribble or stick a note right on it. `read_canvas` anchors such an annotation to the prototype it is on, with its position inside the prototype in pixels, and the screenshot shows the prototype as currently displayed (after your clicks) with your marks on top. To act on the feedback, Claude renders a new iteration with `iterationOf` set to the old prototype's id and a new label: it appears right next to the old one, which stays. Rendering the same `id` (default: a slug of the label) again replaces its HTML in place. Prototypes are untrusted and run sandboxed: an opaque-origin iframe (`sandbox="allow-scripts allow-forms"`) with a CSP that allows inline code and `data:` assets only, so no network, storage, cookies, pop-ups, dialogs or navigation of the canvas; if one ever hangs the tab, open the canvas with `?prototypes=off`. Details: [ADR 0016](docs/adr/0016-prototype-sandbox-and-threat-model.md) (sandbox and threat model), [ADR 0017](docs/adr/0017-prototype-frames-iterations-and-annotations.md) (frames, iterations, annotations, screenshots).
 
-Without Claude Code, `pnpm smoke ["label"]` spawns the MCP server over stdio exactly like Claude Code does, waits up to 30 s for the canvas tab to connect, and calls `canvas_smoke_test`.
+Without Claude Code, `pnpm smoke ["label"]` spawns the MCP server over stdio exactly like Claude Code does, waits up to 30 s for the canvas to connect, and calls `canvas_smoke_test`.
 
 Configuration:
 
 - `CANVAS_ASK_TIMEOUT_MS` (MCP server, default `600000`) sets how long one `ask` call waits before returning "no answer yet". Claude Code allows long tool calls (its `MCP_TOOL_TIMEOUT` defaults to about 28 hours); with another MCP client, keep this below that client's tool timeout.
-- `CANVAS_BRIDGE_PORT` (MCP server, default `4477`) and `VITE_CANVAS_BRIDGE_URL` (canvas, default `ws://127.0.0.1:4477`) move the bridge, e.g. to run two Claude Code sessions side by side.
-- Only one canvas tab is active at a time: opening a new tab takes over from the old one.
+- `CANVAS_BACKEND` (MCP server, default `desktop`) selects the canvas: `desktop` installs it into tldraw offline as a board script (default, ADR 0027/0028); `vite` falls back to the Vite app at `http://127.0.0.1:5173`, started by hand with `pnpm dev`. Any value other than exactly `vite` (unset, `desktop`, a typo) resolves to `desktop`.
+- `CANVAS_BRIDGE_PORT` (MCP server, default `4477`) moves the bridge, e.g. to run two Claude Code sessions side by side; the canvas side is `CANVAS_BOARD_SCRIPT_BRIDGE_URL` (board script, baked in at `build:board-script` time — rebuild after changing it) or `VITE_CANVAS_BRIDGE_URL` (Vite app, default `ws://127.0.0.1:4477`, read at runtime).
+- `CANVAS_DESKTOP_DOC_NAME` (MCP server, default `tldraw-code session`) and `CANVAS_DESKTOP_DOC_DIR` (default: tldraw offline's own default) name and place the session document the desktop backend finds or creates.
+- Only one canvas (board script or Vite tab) is active at a time: a new one connecting takes over from the old one.
 - `pnpm mcp` runs the MCP server by hand (stdio; logs go to stderr).
 - `CANVAS_TRACKER_FIXTURE` (MCP server) reads wayfinder maps from a JSON fixture file (`{ repo, issues }`) instead of GitHub, re-read on every sync; `pnpm demo:wayfinder` uses it.
 - Tracker sync (MCP server): the GitHub token is `GH_TOKEN`, else `GITHUB_TOKEN`, else your `gh` login (`gh auth token`); without one only public repositories can be read (60 requests per hour). The repository is the one named in the map argument, else `CANVAS_TRACKER_REPO` (`owner/name`), else the `origin` remote of the repo Claude Code runs in. `GITHUB_API_URL` targets GitHub Enterprise. Behind an HTTPS proxy, start Claude Code with `NODE_USE_ENV_PROXY=1` so the server's `fetch` uses it.
@@ -102,8 +115,9 @@ Configuration:
 pnpm test        # vitest: protocol, frontier, question, diagram and prototype schemas and the diff of alternatives, MCP tools (incl. ask, compare, render_diagram, render_note, render_prototype, read_canvas and the activity digest) against a fake canvas, canvas bridge client, command handlers, graph layout, diagram frames and comparisons, prototype frames (placement, iterations, annotation anchors, sandbox policy), question card and answer watcher, canvas reads and activity tracking, collapsing answered cards, the tracker sync (ticket-to-node mapping, body conventions, `sync_wayfinder_map` against a fake GitHub, the fixture file tracker), comparisons of prototypes and settling comparisons (`settle_comparison`, collapsed alternatives, the choice pin), and the canvas-grilling and canvas-wayfinder skills against the registered tools
 pnpm typecheck   # tsc in every package
 pnpm lint        # biome (lint + format check); `pnpm format` fixes
-pnpm build       # production build of the canvas
-pnpm check       # all of the above
+pnpm build       # production build of the Vite app (the CANVAS_BACKEND=vite fallback)
+pnpm build:board-script  # builds the canvas as a tldraw offline board script (the default backend)
+pnpm check       # lint, typecheck, test and pnpm build (not build:board-script; run it separately after changing apps/canvas/src)
 ```
 
 Tests exercise the MCP tool interface against a fake canvas that speaks the bridge protocol over a real WebSocket (`apps/mcp-server/test/fakeCanvas.ts`), per the testing seam proposed in the spec. Blocking tools are tested on a manual clock and event-driven waits (`apps/mcp-server/test/timing.ts`), never on sleeps ([ADR 0019](docs/adr/0019-ask-timing-early-answers-and-a-manual-clock.md)). New canvas tools add a command to `packages/protocol/src/commands.ts`, a handler in `apps/canvas/src/bridge/commandHandlers.ts` (the compiler enforces it) and a tool in `apps/mcp-server/src/server.ts`.
