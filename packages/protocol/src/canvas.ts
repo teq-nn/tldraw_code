@@ -173,6 +173,8 @@ export const CanvasActivitySchema = z.object({
 	changed: z.number().int().nonnegative(),
 	/** Shapes the user deleted (not counting ones added and deleted again). */
 	removed: z.number().int().nonnegative(),
+	/** Sticky notes addressed to Claude with {@link AGENT_TAG} that it has not been told about yet (ADR 0024). */
+	invoked: z.number().int().positive().optional(),
 })
 export type CanvasActivity = z.infer<typeof CanvasActivitySchema>
 
@@ -180,6 +182,19 @@ export type CanvasActivity = z.infer<typeof CanvasActivitySchema>
 export const MAX_SCREENSHOT_EDGE = 1568
 /** Most shapes one read lists; the rest are counted in `omitted`. */
 export const MAX_READ_SHAPES = 150
+
+/**
+ * A sticky note that contains this tag is addressed to Claude (ADR 0024);
+ * only such notes wake it while it is idle.
+ */
+export const AGENT_TAG = '&agent'
+
+const AGENT_TAG_PATTERN = new RegExp(`(?<![\\w&])${AGENT_TAG}\\b`, 'i')
+
+/** Does this note text address Claude? The tag stands alone: not inside a word, not a prefix of one. */
+export function mentionsAgent(text: string): boolean {
+	return AGENT_TAG_PATTERN.test(text)
+}
 
 export function isActivityEmpty(activity: CanvasActivity): boolean {
 	return (

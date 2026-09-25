@@ -34,6 +34,7 @@ import {
 } from '@tldraw-code/protocol'
 import type { ZodError } from 'zod'
 import { z } from 'zod'
+import { ActivityChannel, CHANNEL_CAPABILITIES, CHANNEL_NOTIFICATION } from './activityChannel'
 import {
 	type AskClock,
 	AskCoordinator,
@@ -64,7 +65,10 @@ export const SERVER_INSTRUCTIONS =
 	'The canvas changes between your tool calls: the user adds sticky notes, drawings and arrows. ' +
 	'Call read_canvas (shape data plus a screenshot) before each new question, before interpreting an ' +
 	'answer that refers to the canvas (e.g. a sticky-note answer), and whenever a tool result reports ' +
-	'canvas activity. Treat a sticky note or drawing next to or on a question card or decision node as ' +
+	'canvas activity, or when a <channel source="tldraw-canvas"> message says the user addressed you with ' +
+	'&agent in a sticky note (they are waiting for you: read the canvas and answer that note first). ' +
+	'Sticky notes without &agent do not wake you; they show up when you read. ' +
+	'Treat a sticky note or drawing next to or on a question card or decision node as ' +
 	"the user's comment on it; one on a prototype is feedback on that prototype. " +
 	'When the session works a wayfinder map on the issue tracker, its tickets are the source of truth: ' +
 	'draw the map with sync_wayfinder_map instead of render_graph, and call it again after every change ' +
@@ -88,15 +92,29 @@ export interface McpServerOptions {
 export function createMcpServer(bridge: CanvasBridge, options: McpServerOptions = {}): McpServer {
 	const server = new McpServer(
 		{ name: SERVER_NAME, version: SERVER_VERSION },
-		{ instructions: SERVER_INSTRUCTIONS },
+		{ capabilities: CHANNEL_CAPABILITIES, instructions: SERVER_INSTRUCTIONS },
+	)
+	const channel = new ActivityChannel(
+		bridge,
+		(content, meta) =>
+			// A Claude Code extension, not in the SDK's notification union.
+			server.server.notification({
+				method: CHANNEL_NOTIFICATION,
+				params: { content, meta },
+			} as unknown as ServerNotification),
+		options.log,
 	)
 	/** Tool result that ends with the canvas activity digest (ADR 0009). */
 	const withActivity = (run: () => Promise<string>) =>
-		toToolResult(async () => {
-			const text = await run()
-			const note = await fetchActivityNote(bridge)
-			return note ? `${text}\n\n${note}` : text
-		})
+		toToolResult(() =>
+			channel.whileBusy(async () => {
+				const text = await run()
+				const note = await fetchActivityNote(bridge)
+				if (!note) return text
+				channel.reported(note)
+				return `${text}\n\n${note}`
+			}),
+		)
 	const askTimings = { ...DEFAULT_ASK_TIMINGS, ...options.ask }
 	const asks = new AskCoordinator(bridge, askTimings, options.log, options.clock)
 	const tracker = options.tracker ?? defaultTrackerOptions()
@@ -505,6 +523,7 @@ export function createMcpServer(bridge: CanvasBridge, options: McpServerOptions 
 		async ({ region = 'all', screenshot = true }) => {
 			try {
 				const result = await bridge.request('canvas.read', { region, screenshot })
+				channel.read()
 				const content: CallToolResult['content'] = [
 					{ type: 'text', text: describeRead(region, result) },
 				]

@@ -245,6 +245,13 @@ export const canvasEvents = {
 		askId: AskIdSchema,
 		answer: AskAnswerSchema,
 	}),
+	/**
+	 * The user changed the canvas and then paused (ADR 0024): everything they
+	 * did since Claude last read the canvas, so the server can push it into
+	 * the session as a channel event. Sent after a quiet period, never while
+	 * the user is still typing into a shape.
+	 */
+	'canvas.activity': CanvasActivitySchema,
 } as const
 
 export type CanvasEventName = keyof typeof canvasEvents

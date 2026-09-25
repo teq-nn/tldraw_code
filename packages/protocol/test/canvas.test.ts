@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { CanvasActivitySchema, CanvasRegionSchema, canvasCommands, isActivityEmpty } from '../src'
+import {
+	CanvasActivitySchema,
+	CanvasRegionSchema,
+	canvasCommands,
+	isActivityEmpty,
+	mentionsAgent,
+} from '../src'
 
 describe('CanvasRegionSchema', () => {
 	it.each(['all', 'viewport', 'question', { x: -10, y: 0, w: 100, h: 50 }])(
@@ -38,5 +44,18 @@ describe('canvas.read result', () => {
 	it('allows an empty page', () => {
 		const empty = { region: null, shapes: [], omitted: 0, screenshot: null }
 		expect(canvasCommands['canvas.read'].result.safeParse(empty).success).toBe(true)
+	})
+})
+
+describe('mentionsAgent', () => {
+	it.each(['&agent', 'Look at this &agent', 'a\n&Agent, please', '(&AGENT)'])(
+		'finds the tag in %j',
+		(text) => {
+			expect(mentionsAgent(text)).toBe(true)
+		},
+	)
+
+	it.each(['agent', '&agentic', 'me&agent', '&&agent', 'a & agent'])('ignores %j', (text) => {
+		expect(mentionsAgent(text)).toBe(false)
 	})
 })

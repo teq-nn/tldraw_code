@@ -295,14 +295,19 @@ if (await takeNext('Settings page layout')) {
 	await sync()
 	const page = (body: string) =>
 		`<!doctype html><html><head><style>
-body{margin:0;font:14px system-ui,sans-serif;color:#1d2130;background:#fff}
-header{padding:12px 16px;border-bottom:1px solid #e3e5ea;font-weight:600}
-nav{display:flex;gap:4px;padding:8px 16px;border-bottom:1px solid #e3e5ea}
-nav button{border:0;background:none;padding:6px 10px;border-radius:6px;cursor:pointer}
-nav button.on{background:#ebe6f8;color:#5b3fb0}
-section{padding:12px 16px}h3{margin:12px 0 6px;font-size:13px;color:#5b6070}
-label{display:flex;justify-content:space-between;padding:6px 0}
-</style></head><body><header>Settings</header>${body}</body></html>`
+body{margin:0;padding:8px;font:400 12px Inter,system-ui,sans-serif;color:#535353;background:#E7EBEE;text-wrap:pretty}
+main{background:#F8F9FB;border:1px solid #CBCCCE;border-radius:6px;overflow:hidden}
+header{padding:12px 16px;border-bottom:1px solid #CBCCCE;font-size:14px;font-weight:500;color:#5C5C5C;text-wrap:balance}
+nav{display:flex;gap:4px;padding:8px 16px;border-bottom:1px solid #CBCCCE}
+nav button{font:inherit;font-weight:500;color:#64686B;border:0;background:none;padding:4px 8px;border-radius:6px;cursor:pointer}
+nav button:hover{background:#E7EBEE}
+nav button.on{background:#0E54F0;color:#fff}
+button:focus-visible,input:focus-visible{outline:2px solid #0E54F0;outline-offset:2px}
+section{padding:8px 16px 12px}h3{margin:12px 0 4px;font-size:12px;font-weight:500;color:#5C5C5C;text-wrap:balance}
+label{display:flex;justify-content:space-between;align-items:center;padding:4px 8px;margin:0 -8px;border-radius:4px}
+label:hover{background:#E7EBEE}
+input[type=checkbox]{accent-color:#0E54F0;margin:0}
+</style></head><body><main><header>Settings</header>${body}</main></body></html>`
 	const area = (name: string, rows: string[]) =>
 		`<h3>${name}</h3>${rows.map((row) => `<label>${row}<input type="checkbox" checked></label>`).join('')}`
 	const areas: [string, string[]][] = [

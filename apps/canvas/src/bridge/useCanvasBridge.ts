@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import type { Editor } from 'tldraw'
 import { answeredQuestionCards, watchQuestionCards } from '../ask/watchQuestionCards'
 import { ActivityTracker } from '../perception/activity'
+import { pushActivityWhenQuiet } from '../perception/activityPush'
 import { BridgeClient, type BridgeStatus } from './BridgeClient'
 import { createCommandHandlers } from './commandHandlers'
 
@@ -33,8 +34,13 @@ export function useCanvasBridge(editor: Editor | undefined): BridgeStatus {
 		const stopWatching = watchQuestionCards(editor, (askId, answer) =>
 			client.sendEvent('ask.answered', { askId, answer }),
 		)
+		// Lets the server wake Claude when the user comments on the canvas (ADR 0024).
+		const stopPushing = pushActivityWhenQuiet(editor, activity, (digest) =>
+			client.sendEvent('canvas.activity', digest),
+		)
 		client.start()
 		return () => {
+			stopPushing()
 			stopWatching()
 			client.stop()
 			activity.dispose()

@@ -6,7 +6,7 @@ import type {
 	PageBox,
 	ShapeRole,
 } from '@tldraw-code/protocol'
-import { isActivityEmpty } from '@tldraw-code/protocol'
+import { AGENT_TAG, isActivityEmpty } from '@tldraw-code/protocol'
 import type { CanvasBridge } from './bridge'
 
 type ReadResult = CanvasCommandResult<'canvas.read'>
@@ -133,6 +133,11 @@ export function describeActivity(activity: CanvasActivity): string | undefined {
 	if (added.length > 0) {
 		const items = added.map(([role, count]) => `${count} ${ROLE_NAMES[role][count === 1 ? 0 : 1]}`)
 		parts.push(`added ${items.join(', ')}`)
+	}
+	if (activity.invoked) {
+		parts.push(
+			`addressed you with ${AGENT_TAG} in ${activity.invoked} sticky note${activity.invoked === 1 ? '' : 's'}`,
+		)
 	}
 	if (activity.changed > 0) {
 		parts.push(`moved or edited ${activity.changed} shape${activity.changed === 1 ? '' : 's'}`)

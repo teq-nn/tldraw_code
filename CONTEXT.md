@@ -177,7 +177,7 @@ A user shape on or next to one of Claude's shapes, read as the user's comment on
 _Avoid_: markup, feedback shape
 
 **Canvas activity**:
-What the user added, changed or deleted since Claude's last canvas read. Reported as one line at the end of every canvas tool result, so Claude knows when to read again (ADR 0009).
+What the user added, changed or deleted since Claude's last canvas read. Reported as one line at the end of every canvas tool result, so Claude knows when to read again (ADR 0009), and pushed into the session as a channel message when the user pauses after addressing Claude with the `&agent` tag in a sticky note (ADR 0024).
 _Avoid_: diff, changelog
 
 ### Prototypes
