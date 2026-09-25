@@ -47,6 +47,7 @@ describe('canvas-grilling skill', () => {
 				'compare',
 				'render_diagram',
 				'render_prototype',
+				'settle_comparison',
 				'sync_wayfinder_map',
 			]),
 		)

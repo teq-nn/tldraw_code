@@ -18,6 +18,7 @@ import {
 import type { QuestionCardShape } from '../ask/QuestionCardShapeUtil'
 import { getQuestionCards, isQuestionCard } from '../ask/showQuestion'
 import { answerOf, NOTE_REACH } from '../ask/watchQuestionCards'
+import { choiceOf, prototypeComparisonOf } from '../comparison/comparisonFrames'
 import { diagramMeta } from '../diagram/renderDiagrams'
 import { graphMeta, STATUS_COLOR } from '../graph/renderGraph'
 import {
@@ -152,6 +153,13 @@ function describeShape(editor: Editor, shape: TLShape): CanvasShape {
 		const { prototypeId, label, iterationOf } = shape.props
 		described.prototype = { id: prototypeId, label, ...viewportOf(shape) }
 		if (iterationOf) described.prototype.iterationOf = iterationOf
+		const comparison = prototypeComparisonOf(shape)
+		if (comparison) described.prototype.comparison = comparison.comparisonId
+	}
+	const choice = choiceOf(shape)
+	if (choice.choice === 'chosen') described.choice = { state: 'chosen' }
+	if (choice.choice === 'rejected') {
+		described.choice = { state: 'rejected', reason: choice.choiceReason }
 	}
 	const diagram = diagramMeta(shape.meta)
 	if (diagram) {

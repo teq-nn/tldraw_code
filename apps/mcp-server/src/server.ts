@@ -13,7 +13,10 @@ import {
 	type CompareInput,
 	CompareSchema,
 	CompareShape,
+	compareKind,
+	comparePrototypeId,
 	computeFrontier,
+	type DiagramSpec,
 	diffAlternatives,
 	type FrontierGraph,
 	FrontierGraphSchema,
@@ -26,6 +29,8 @@ import {
 	RenderDiagramShape,
 	RenderPrototypeSchema,
 	RenderPrototypeShape,
+	SettleComparisonSchema,
+	SettleComparisonShape,
 } from '@tldraw-code/protocol'
 import type { ZodError } from 'zod'
 import { z } from 'zod'
@@ -286,16 +291,19 @@ export function createMcpServer(bridge: CanvasBridge, options: McpServerOptions 
 		{
 			title: 'Compare alternatives and ask',
 			description:
-				'Show 2 or 3 alternative diagrams side by side, each in its own frame, with what differs between ' +
-				'them highlighted in orange, and ask the user which to take: a question card is attached below ' +
-				'the frames (via ask), with one button per alternative, your recommendation marked, and "' +
-				`${KEEP_GRILLING_LABEL}". Use it for questions about structure or flow, instead of describing ` +
-				'alternatives in words. Each item is {label, caption?, spec} with spec like render_diagram. Give ' +
-				'the same element the same node id in every alternative: nodes are matched by id and edges by ' +
-				'their endpoints, and all frames share one layout, so common parts sit in the same place. ' +
+				'Show 2 or 3 alternatives side by side and ask the user which to take: a question card is ' +
+				'attached below them (via ask), with one button per alternative, your recommendation marked, and "' +
+				`${KEEP_GRILLING_LABEL}". Use it instead of describing alternatives in words. Items are all ` +
+				'diagrams or all prototypes. For a structure or flow, each item is {label, caption?, spec} with ' +
+				'spec like render_diagram: each gets its own frame, all frames share one layout, and what differs ' +
+				'is highlighted in orange; give the same element the same node id in every alternative (nodes are ' +
+				'matched by id, edges by their endpoints). For a UI, each item is {label, caption?, html, width?, ' +
+				'height?, id?} with html like render_prototype: each becomes a clickable, sandboxed prototype frame ' +
+				'(id "<comparison id>-<slug of label>" unless given, for iterating on it later). ' +
 				'Blocks like ask and returns the answer; after "no answer yet", call compare again with the same ' +
-				'arguments to keep waiting (the frames and the card are kept). The frames stay on the canvas; ' +
-				'the next render_graph removes the answered card.',
+				'arguments to keep waiting (the frames and the card are kept). Once the user has chosen, call ' +
+				'settle_comparison to mark the choice and collapse the other alternatives with a reason; the next ' +
+				'render_graph or sync_wayfinder_map removes the answered card.',
 			inputSchema: CompareShape,
 		},
 		async (args, extra) =>
@@ -311,21 +319,10 @@ export function createMcpServer(bridge: CanvasBridge, options: McpServerOptions 
 					)
 				}
 				const input = parsed.data
-				const differences = diffAlternatives(input.items.map((item) => item.spec))
-				const rendered = await bridge.request('diagram.render', {
-					kind: 'comparison',
-					id: input.id,
-					frames: input.items.map((item, index) => ({
-						title: item.label,
-						...(item.caption ? { caption: item.caption } : {}),
-						nodes: item.spec.nodes,
-						edges: item.spec.edges,
-						highlight: {
-							nodes: differences[index]?.nodes.map((d) => d.id) ?? [],
-							edges: differences[index]?.edges.map((d) => d.id) ?? [],
-						},
-					})),
-				})
+				const shown =
+					compareKind(input) === 'prototype'
+						? await showPrototypeAlternatives(input)
+						: await showDiagramAlternatives(input)
 				const question: Question = {
 					question: input.question,
 					options: input.items.map((item) => item.label),
@@ -337,9 +334,101 @@ export function createMcpServer(bridge: CanvasBridge, options: McpServerOptions 
 					comparison: input.id,
 				})
 				return [
-					describeComparison(input, differences, rendered.frameIds),
+					shown,
 					'',
 					describeAskOutcome(question, outcome, askTimings.timeoutMs, 'compare'),
+					...(outcome.kind === 'answered' && outcome.answer.kind !== 'keep_grilling'
+						? [
+								'',
+								`Once the choice is clear, call settle_comparison with id "${input.id}", the chosen label and a ` +
+									'one-line reason for each other alternative, then update the graph.',
+							]
+						: []),
+				].join('\n')
+			}),
+	)
+
+	/** Draw diagram alternatives in frames with one shared layout, differences highlighted (ADR 0015). */
+	const showDiagramAlternatives = async (input: CompareInput) => {
+		const specs = input.items.map((item) => item.spec as DiagramSpec)
+		const differences = diffAlternatives(specs)
+		const rendered = await bridge.request('diagram.render', {
+			kind: 'comparison',
+			id: input.id,
+			frames: input.items.map((item, index) => ({
+				title: item.label,
+				...(item.caption ? { caption: item.caption } : {}),
+				nodes: specs[index]?.nodes ?? [],
+				edges: specs[index]?.edges ?? [],
+				highlight: {
+					nodes: differences[index]?.nodes.map((d) => d.id) ?? [],
+					edges: differences[index]?.edges.map((d) => d.id) ?? [],
+				},
+			})),
+		})
+		return describeComparison(input, differences, rendered.frameIds)
+	}
+
+	/** Show prototype alternatives in prototype frames side by side (ADR 0020). */
+	const showPrototypeAlternatives = async (input: CompareInput) => {
+		const lines: string[] = []
+		for (const [index, item] of input.items.entries()) {
+			const id = comparePrototypeId(input.id, item)
+			const result = await bridge.request('prototype.render', {
+				id,
+				label: item.label,
+				html: item.html ?? '',
+				...(item.caption ? { caption: item.caption } : {}),
+				...(item.width ? { width: item.width } : {}),
+				...(item.height ? { height: item.height } : {}),
+				comparison: { id: input.id, index },
+			})
+			lines.push(
+				`- ${item.label}: prototype "${id}" in shape ${result.shapeId} (viewport ${result.width} x ${result.height} px)`,
+			)
+		}
+		return [
+			`Showing ${input.items.length} prototypes side by side for "${input.id}"; a question card below them ` +
+				'asks which to take. The user can click through each one first.',
+			...lines,
+			'A sketch or sticky note on one of them shows up in read_canvas anchored to it; to act on it, ' +
+				'render a new iteration with render_prototype (iterationOf: its id).',
+		].join('\n')
+	}
+
+	server.registerTool(
+		'settle_comparison',
+		{
+			title: 'Record the choice of a comparison',
+			description:
+				'After the user chose an alternative of a compare, record the choice on the canvas: the chosen ' +
+				'alternative is marked "Chosen" and pinned to its decision node with a green arrow; every other ' +
+				'alternative is collapsed to its title bar, dimmed, with your one-line reason why it lost, and stays ' +
+				'as the record. Give every other alternative with a reason. Call it once the choice is clear (the ' +
+				'user clicked an alternative, or a sticky note picks one), then update the graph. Settling again ' +
+				'with another choice switches it; calling compare again with the same id re-opens the comparison.',
+			inputSchema: SettleComparisonShape,
+		},
+		async (args) =>
+			withActivity(async () => {
+				const parsed = SettleComparisonSchema.safeParse(args)
+				if (!parsed.success) {
+					throw new ToolInputError('invalid_choice', describeIssues(parsed.error))
+				}
+				const input = parsed.data
+				const node = input.node ?? input.id
+				const result = await bridge.request('comparison.settle', {
+					id: input.id,
+					chosen: input.chosen,
+					rejected: input.rejected,
+					node,
+				})
+				return [
+					`Settled comparison "${input.id}": "${input.chosen}" is marked chosen (frame ${result.chosenFrameId}); ` +
+						`${input.rejected.map((r) => `"${r.label}"`).join(', ')} collapsed with their reasons.`,
+					result.pinId
+						? `Pinned to decision node "${node}" with arrow ${result.pinId}.`
+						: `Decision node "${node}" is not on the canvas, so nothing is pinned; draw the graph and settle again to pin it.`,
 				].join('\n')
 			}),
 	)
@@ -357,8 +446,8 @@ export function createMcpServer(bridge: CanvasBridge, options: McpServerOptions 
 				'then anchors each annotation to this prototype with its position inside it, and its screenshot ' +
 				'shows the prototype as currently displayed. To act on such feedback, render a new iteration with ' +
 				'iterationOf set to this id and a new label: it appears right next to the old one, which stays. ' +
-				'Rendering again with the same id (default: a slug of the label) replaces its HTML in place. For a ' +
-				'UI choice, render 2 or 3 prototypes, then ask which to take.',
+				'Rendering again with the same id (default: a slug of the label) replaces its HTML in place. To let ' +
+				'the user choose between 2 or 3 UIs, use compare with html items instead.',
 			inputSchema: RenderPrototypeShape,
 		},
 		async (args) =>

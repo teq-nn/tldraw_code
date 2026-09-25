@@ -19,6 +19,7 @@ import {
 	toRichText,
 } from 'tldraw'
 import { collapseAnsweredQuestion } from '../ask/collapseQuestion'
+import { choicePinMeta } from '../comparison/comparisonFrames'
 import { layoutGraph } from './layout'
 
 type RenderPayload = CanvasCommandPayload<'graph.render'>
@@ -102,6 +103,13 @@ export function renderGraph(editor: Editor, payload: RenderPayload): RenderResul
 		for (const shape of stale)
 			result[graphMeta(shape.meta)?.graphPart === 'node' ? 'nodes' : 'edges'].removed++
 		editor.deleteShapes(stale.map((shape) => shape.id))
+		// A choice pinned to a decision that left the graph has nothing to point from (ADR 0021).
+		const nodeIds = new Set(payload.nodes.map((node) => node.id))
+		const orphanPins = editor.getCurrentPageShapes().filter((shape) => {
+			const pin = choicePinMeta(shape.meta)
+			return pin !== undefined && !nodeIds.has(pin.node)
+		})
+		editor.deleteShapes(orphanPins.map((shape) => shape.id))
 
 		// 2. Upsert node shapes with their text and style, so their real size is known.
 		for (const node of payload.nodes) {

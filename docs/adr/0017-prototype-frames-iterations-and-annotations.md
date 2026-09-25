@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: accepted, extended by ADR 0020 (prototypes in compare)
 ---
 
 # Prototype frames: keyed by id, iterations placed beside, annotations mapped in prototype pixels

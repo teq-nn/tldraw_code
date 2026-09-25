@@ -20,6 +20,7 @@ import {
 	type TLTextShape,
 	toRichText,
 } from 'tldraw'
+import { UNSETTLED, unpinComparison } from '../comparison/comparisonFrames'
 import { layoutGraph } from '../graph/layout'
 
 type RenderPayload = CanvasCommandPayload<'diagram.render'>
@@ -37,7 +38,7 @@ export const DIFFERENCE_LEGEND = 'Orange: differs from the other alternatives'
 export const DIAGRAM_NODE_WIDTH = 180
 const DIAGRAM_NODE_MIN_HEIGHT = 70
 /** Inner margin of a frame around its diagram. */
-const FRAME_PADDING = 32
+export const FRAME_PADDING = 32
 /** Height reserved for the caption and legend lines at the top of a frame. */
 const CAPTION_HEIGHT = 64
 const MIN_FRAME_WIDTH = 320
@@ -104,7 +105,7 @@ export function diagramEdgeId(
 	return createShapeId(`diagram-edge:${groupKey(kind, id, frameIndex)}/${edgeKey(edge)}`)
 }
 
-function captionId(kind: DiagramKind, id: string, frameIndex: number): TLShapeId {
+export function diagramCaptionId(kind: DiagramKind, id: string, frameIndex: number): TLShapeId {
 	return createShapeId(`diagram-caption:${groupKey(kind, id, frameIndex)}`)
 }
 
@@ -148,11 +149,14 @@ export function renderDiagrams(editor: Editor, payload: RenderPayload): RenderRe
 	const withCaption = payload.frames.some((frame) => frame.caption) || kind === 'comparison'
 
 	editor.run(() => {
+		// 0. A comparison shown again is open again: its earlier choice no longer holds (ADR 0021).
+		if (kind === 'comparison') unpinComparison(editor, id)
+
 		// 1. Remove shapes of frames, nodes and edges that are no longer in the payload.
 		const wanted = new Set<TLShapeId>()
 		payload.frames.forEach((frame, index) => {
 			wanted.add(diagramFrameId(kind, id, index))
-			if (withCaption) wanted.add(captionId(kind, id, index))
+			if (withCaption) wanted.add(diagramCaptionId(kind, id, index))
 			for (const node of frame.nodes) wanted.add(diagramNodeId(kind, id, index, node.id))
 			for (const edge of frame.edges) wanted.add(diagramEdgeId(kind, id, index, edge))
 		})
@@ -250,8 +254,9 @@ export function renderDiagrams(editor: Editor, payload: RenderPayload): RenderRe
 				x: rowOrigin.x + index * (frameW + FRAME_GAP),
 				y: rowOrigin.y,
 				rotation: 0,
+				opacity: 1,
 				props: { w: frameW, h: frameH },
-				meta: meta('frame', payload, frame, index, '', false, rowOrigin),
+				meta: { ...meta('frame', payload, frame, index, '', false, rowOrigin), ...UNSETTLED },
 			})
 
 			// 4. Place the nodes in their slots, centred when smaller than the slot.
@@ -276,7 +281,7 @@ export function renderDiagrams(editor: Editor, payload: RenderPayload): RenderRe
 			if (withCaption) {
 				const lines = [frame.caption, kind === 'comparison' ? DIFFERENCE_LEGEND : undefined]
 				const text: TLShapePartial<TLTextShape> = {
-					id: captionId(kind, id, index),
+					id: diagramCaptionId(kind, id, index),
 					type: 'text',
 					parentId: frameId,
 					x: FRAME_PADDING,

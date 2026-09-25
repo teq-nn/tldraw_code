@@ -19,6 +19,7 @@ const ROLE_NAMES: Record<ShapeRole, [singular: string, plural: string]> = {
 	diagram_node: ['diagram node', 'diagram nodes'],
 	diagram_edge: ['diagram edge', 'diagram edges'],
 	prototype_frame: ['prototype', 'prototypes'],
+	choice_pin: ['choice pin', 'choice pins'],
 	sticky_note: ['sticky note', 'sticky notes'],
 	drawing: ['drawing', 'drawings'],
 	text: ['text', 'texts'],
@@ -74,10 +75,18 @@ function describeShape(shape: CanvasShape): string {
 		parts.push(`in ${kind} "${id}" / "${frame}"${differs ? ' [differs]' : ''}`)
 	}
 	if (shape.prototype) {
-		const { id, iterationOf, width, height } = shape.prototype
+		const { id, iterationOf, width, height, comparison } = shape.prototype
 		parts.push(`"${id}"`)
+		if (comparison) parts.push(`in comparison "${comparison}"`)
 		if (iterationOf) parts.push(`(iteration of "${iterationOf}")`)
 		parts.push(`viewport ${width} x ${height} px`)
+	}
+	if (shape.choice) {
+		parts.push(
+			shape.choice.state === 'chosen'
+				? '[chosen]'
+				: `[rejected${shape.choice.reason ? `: ${shape.choice.reason}` : ''}, collapsed]`,
+		)
 	}
 	// A diagram frame's text is its title, already named above.
 	if (shape.text && shape.role !== 'diagram_frame') parts.push(JSON.stringify(shape.text))
@@ -90,7 +99,10 @@ function describeShape(shape: CanvasShape): string {
 		parts.push(`answer: ${shape.question.answer ?? 'none yet'}`)
 	}
 	if (shape.color && shape.owner === 'user') parts.push(`(${shape.color})`)
-	if (shape.role === 'arrow' && (shape.fromShapeId || shape.toShapeId)) {
+	if (
+		(shape.role === 'arrow' || shape.role === 'choice_pin') &&
+		(shape.fromShapeId || shape.toShapeId)
+	) {
 		parts.push(`from ${shape.fromShapeId ?? 'nowhere'} to ${shape.toShapeId ?? 'nowhere'}`)
 	}
 	if (shape.anchor) {

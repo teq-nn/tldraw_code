@@ -81,6 +81,24 @@ async function connectCanvas(): Promise<FakeCanvas> {
 				edges: { created: 2, updated: 0, removed: 0 },
 			})
 		}
+		if (command.name === 'prototype.render') {
+			const { id } = command.payload as { id: string }
+			return makeOkResult(command.id, {
+				shapeId: `shape:prototype:${id}`,
+				created: true,
+				bounds: { x: 0, y: 0, w: 480, h: 416 },
+				width: 480,
+				height: 360,
+			})
+		}
+		if (command.name === 'comparison.settle') {
+			return makeOkResult(command.id, {
+				kind: 'diagram',
+				chosenFrameId: 'shape:frame-1',
+				rejectedFrameIds: ['shape:frame-0'],
+				pinId: 'shape:choice-pin:ingest',
+			})
+		}
 		return makeOkResult(command.id, { shapeId: 'shape:question-card', created: true })
 	})
 	await waitFor(() => bridge.isConnected())
@@ -307,5 +325,164 @@ describe('compare', () => {
 
 		canvas.sendEvent('ask.answered', { askId: askIdOf(show), answer: { kind: 'keep_grilling' } })
 		await waiting
+	})
+})
+
+describe('compare with prototypes (ADR 0020)', () => {
+	const tabs = '<!doctype html><p>Tabs</p>'
+	const single = '<!doctype html><p>Single form</p>'
+	const uiComparison = {
+		id: 'login',
+		question: 'Which login screen?',
+		items: [
+			{ label: 'Tabs', caption: 'Sign in and sign up as tabs.', html: tabs },
+			{ label: 'Single form', html: single, width: 400, height: 300 },
+		],
+		recommendation: 'Single form',
+	}
+
+	it('shows each alternative as a prototype of the comparison, then asks below them', async () => {
+		const canvas = await connectCanvas()
+		const pending = call('compare', uiComparison)
+		const show = await command(canvas, 2)
+		expect(canvas.commands.slice(0, 2)).toMatchObject([
+			{
+				name: 'prototype.render',
+				payload: {
+					id: 'login-tabs',
+					label: 'Tabs',
+					caption: 'Sign in and sign up as tabs.',
+					html: tabs,
+					comparison: { id: 'login', index: 0 },
+				},
+			},
+			{
+				name: 'prototype.render',
+				payload: {
+					id: 'login-single-form',
+					html: single,
+					width: 400,
+					height: 300,
+					comparison: { id: 'login', index: 1 },
+				},
+			},
+		])
+		expect(show).toMatchObject({
+			name: 'ask.show',
+			payload: { options: ['Tabs', 'Single form'], recommendation: 1, comparison: 'login' },
+		})
+		canvas.sendEvent('ask.answered', {
+			askId: askIdOf(show),
+			answer: { kind: 'option', option: 0 },
+		})
+		const text = textOf(await pending)
+		expect(text).toContain('Showing 2 prototypes side by side for "login"')
+		expect(text).toContain('- Tabs: prototype "login-tabs"')
+		expect(text).toContain('The user chose: Tabs.')
+		expect(text).toContain('call settle_comparison with id "login"')
+	})
+
+	it('uses the prototype ids given', async () => {
+		const canvas = await connectCanvas()
+		const items = uiComparison.items.map((item, index) => ({ ...item, id: `v${index}` }))
+		const pending = call('compare', { ...uiComparison, items })
+		const show = await command(canvas, 2)
+		expect(canvas.commands.map((c) => (c.payload as { id?: string }).id).slice(0, 2)).toEqual([
+			'v0',
+			'v1',
+		])
+		canvas.sendEvent('ask.answered', { askId: askIdOf(show), answer: { kind: 'keep_grilling' } })
+		expect(textOf(await pending)).not.toContain('settle_comparison')
+	})
+
+	it.each([
+		[
+			'diagrams mixed with prototypes',
+			{
+				items: [
+					{ label: 'Tabs', html: tabs },
+					{ label: 'Flow', spec: direct },
+				],
+			},
+		],
+		[
+			'an item with both spec and html',
+			{ items: [{ label: 'Tabs', html: tabs, spec: direct }, uiComparison.items[1]] },
+		],
+		['an item with neither', { items: [{ label: 'Tabs' }, uiComparison.items[1]] }],
+		[
+			'a prototype size on a diagram',
+			{
+				items: [
+					{ label: 'Direct', spec: direct, width: 400 },
+					{ label: 'Single form', spec: queued },
+				],
+			},
+		],
+	])('rejects %s without touching the canvas', async (_name, change) => {
+		const canvas = await connectCanvas()
+		const result = await call('compare', { ...uiComparison, ...change })
+		expect(result.isError).toBe(true)
+		expect(textOf(result)).toContain('[invalid_comparison]')
+		expect(canvas.commands).toHaveLength(0)
+	})
+})
+
+describe('settle_comparison (ADR 0021)', () => {
+	const choice = {
+		id: 'ingest',
+		chosen: 'Queued',
+		rejected: [{ label: 'Direct', reason: 'Writes block the request' }],
+	}
+
+	it('asks the canvas to settle the comparison, pinned to the node of the same id by default', async () => {
+		const canvas = await connectCanvas()
+		const result = await call('settle_comparison', choice)
+		expect(canvas.commands[0]).toMatchObject({
+			name: 'comparison.settle',
+			payload: { ...choice, node: 'ingest' },
+		})
+		expect(textOf(result)).toContain('"Queued" is marked chosen')
+		expect(textOf(result)).toContain('Pinned to decision node "ingest"')
+	})
+
+	it('pins to the node given', async () => {
+		const canvas = await connectCanvas()
+		await call('settle_comparison', { ...choice, node: '12' })
+		expect(canvas.commands[0]?.payload).toMatchObject({ node: '12' })
+	})
+
+	it('says when there was no node to pin to', async () => {
+		const canvas = await connectCanvas()
+		canvas.respondWith((envelope) =>
+			makeOkResult(envelope.id, {
+				kind: 'diagram',
+				chosenFrameId: 'shape:frame-1',
+				rejectedFrameIds: ['shape:frame-0'],
+				pinId: null,
+			}),
+		)
+		expect(textOf(await call('settle_comparison', choice))).toContain('nothing is pinned')
+	})
+
+	it('passes the canvas refusal on, e.g. a missing reason', async () => {
+		const canvas = await connectCanvas()
+		canvas.failWith('handler_failed', 'Give a reason for every alternative that was not chosen')
+		const result = await call('settle_comparison', choice)
+		expect(result.isError).toBe(true)
+		expect(textOf(result)).toContain('Give a reason')
+	})
+
+	it.each([
+		['the chosen alternative among the rejected', { rejected: [{ label: 'queued', reason: 'x' }] }],
+		['no rejected alternative', { rejected: [] }],
+		['a rejected alternative without a reason', { rejected: [{ label: 'Direct', reason: '' }] }],
+	])('rejects %s without touching the canvas', async (_name, change) => {
+		const canvas = await connectCanvas()
+		const result = await call('settle_comparison', { ...choice, ...change })
+		expect(result.isError).toBe(true)
+		// Shape errors are caught by the SDK's input validation, cross-field ones by the tool.
+		expect(textOf(result)).toMatch(/\[invalid_choice\]|Input validation error/)
+		expect(canvas.commands).toHaveLength(0)
 	})
 })

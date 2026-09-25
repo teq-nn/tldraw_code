@@ -1,5 +1,6 @@
 import { createShapeId, type Editor, toRichText } from 'tldraw'
 import { showQuestion } from '../ask/showQuestion'
+import { settleComparison } from '../comparison/settleComparison'
 import { renderDiagrams } from '../diagram/renderDiagrams'
 import { renderGraph } from '../graph/renderGraph'
 import type { ActivityTracker } from '../perception/activity'
@@ -49,6 +50,7 @@ export function createCommandHandlers(
 		'diagram.render': (payload) => asClaude(() => renderDiagrams(editor, payload)),
 		'ask.show': (payload) => asClaude(() => showQuestion(editor, payload)),
 		'prototype.render': (payload) => asClaude(() => renderPrototype(editor, payload)),
+		'comparison.settle': (payload) => asClaude(() => settleComparison(editor, payload)),
 		'canvas.read': (payload) => readCanvas(editor, payload, { capture, activity }),
 		'canvas.activity': () =>
 			activity ? activity.snapshot() : { added: {}, changed: 0, removed: 0 },

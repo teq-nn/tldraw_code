@@ -1,6 +1,7 @@
 import type { ShapeRole } from '@tldraw-code/protocol'
 import type { TLShape } from 'tldraw'
 import { QUESTION_CARD_TYPE } from '../ask/QuestionCardShapeUtil'
+import { choicePinMeta } from '../comparison/comparisonFrames'
 import { diagramMeta } from '../diagram/renderDiagrams'
 import { graphMeta } from '../graph/renderGraph'
 import { PROTOTYPE_FRAME_TYPE } from '../prototype/PrototypeShapeUtil'
@@ -37,6 +38,7 @@ export function roleOf(shape: TLShape): ShapeRole {
 	if (graph) return graph.graphPart === 'node' ? 'decision_node' : 'dependency'
 	const diagram = diagramMeta(shape.meta)
 	if (diagram) return DIAGRAM_ROLES[diagram.diagramPart]
+	if (choicePinMeta(shape.meta)) return 'choice_pin'
 	return ROLE_BY_TYPE[shape.type] ?? 'other'
 }
 
@@ -48,6 +50,7 @@ const CLAUDE_ROLES: ReadonlySet<ShapeRole> = new Set([
 	'diagram_node',
 	'diagram_edge',
 	'prototype_frame',
+	'choice_pin',
 ])
 
 /** Marker in `shape.meta` of shapes a canvas tool drew without a domain role (e.g. the smoke test). */

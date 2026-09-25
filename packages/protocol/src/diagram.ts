@@ -1,5 +1,4 @@
 import { z } from 'zod'
-import { KEEP_GRILLING_LABEL, MAX_OPTION_LENGTH, MAX_QUESTION_LENGTH } from './ask'
 import { checkNodesAndEdges, edgeKey } from './graph'
 
 /**
@@ -55,7 +54,8 @@ export const DiagramSpecShape = {
 	edges: z.array(DiagramEdgeSchema).max(MAX_DIAGRAM_EDGES).default([]),
 }
 
-const DiagramSpecObject = z.object(DiagramSpecShape)
+/** A diagram spec without the cross-field checks (see {@link checkNodesAndEdges}). */
+export const DiagramSpecObject = z.object(DiagramSpecShape)
 
 /** A complete diagram spec: unique node ids, edges only between known nodes, no duplicates. */
 export const DiagramSpecSchema = DiagramSpecObject.superRefine((spec, ctx) =>
@@ -84,75 +84,6 @@ export const RenderDiagramSchema = z.object(RenderDiagramShape).superRefine((inp
 	checkNodesAndEdges(input.spec, ctx, ['spec'])
 })
 export type RenderDiagramInput = z.infer<typeof RenderDiagramSchema>
-
-export const CompareItemSchema = z.object({
-	label: z
-		.string()
-		.trim()
-		.min(1)
-		.max(MAX_OPTION_LENGTH)
-		.describe('Short name of the alternative, a few words. Its frame title and its answer button.'),
-	caption: z
-		.string()
-		.trim()
-		.min(1)
-		.max(160)
-		.optional()
-		.describe('One sentence on what sets this alternative apart. Shown in its frame.'),
-	spec: DiagramSpecObject.describe('The alternative as a diagram spec, like render_diagram.'),
-})
-export type CompareItem = z.infer<typeof CompareItemSchema>
-
-/** Input of `compare`. */
-export const CompareShape = {
-	id: DiagramIdSchema.describe(
-		'Stable id of the comparison, e.g. the id of the decision node it settles. ' +
-			'Calling compare again with the same id updates its frames in place.',
-	),
-	question: z
-		.string()
-		.trim()
-		.min(1)
-		.max(MAX_QUESTION_LENGTH)
-		.describe('The question, one short sentence, e.g. "Which data flow should we build?"'),
-	items: z
-		.array(CompareItemSchema)
-		.min(MIN_COMPARE_ITEMS)
-		.max(MAX_COMPARE_ITEMS)
-		.describe('2 or 3 alternatives, shown side by side in this order.'),
-	recommendation: z
-		.string()
-		.trim()
-		.min(1)
-		.describe('Label of the alternative you recommend; marked on the question card.'),
-}
-
-export const CompareSchema = z.object(CompareShape).superRefine((input, ctx) => {
-	const seen = new Set<string>()
-	input.items.forEach((item, index) => {
-		checkNodesAndEdges(item.spec, ctx, ['items', index, 'spec'])
-		const key = item.label.toLowerCase()
-		if (seen.has(key) || key === KEEP_GRILLING_LABEL.toLowerCase()) {
-			ctx.addIssue({
-				code: 'custom',
-				path: ['items', index, 'label'],
-				message:
-					key === KEEP_GRILLING_LABEL.toLowerCase()
-						? `'${KEEP_GRILLING_LABEL}' is added to every question card automatically`
-						: `duplicate label '${item.label}'`,
-			})
-		}
-		seen.add(key)
-	})
-	if (!input.items.some((item) => item.label === input.recommendation)) {
-		ctx.addIssue({
-			code: 'custom',
-			path: ['recommendation'],
-			message: `recommendation '${input.recommendation}' is not the label of an item`,
-		})
-	}
-})
-export type CompareInput = z.infer<typeof CompareSchema>
 
 /** Why an element of one alternative is highlighted. */
 export type DifferenceKind =

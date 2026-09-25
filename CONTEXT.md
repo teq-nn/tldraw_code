@@ -105,12 +105,24 @@ The JSON graph a diagram is drawn from: nodes `{ id, label, look? }` and edges `
 _Avoid_: Mermaid, definition, source
 
 **Comparison**:
-2 or 3 alternatives shown side by side by `compare`, each in its own frame with one shared layout, their differences highlighted, and a question card below asking which to take (ADR 0015). Keyed by an id, usually that of the decision node it settles.
+2 or 3 alternatives shown side by side by `compare`, each in its own frame, with a question card below asking which to take. All diagrams (one shared layout, differences highlighted, ADR 0015) or all prototypes (ADR 0020). Keyed by an id, usually that of the decision node it settles.
 _Avoid_: diff view, variants view
 
 **Alternative**:
-One item of a comparison: a label (its frame title and answer button), an optional caption and a diagram spec.
+One item of a comparison: a label (its frame title and answer button), an optional caption, and either a diagram spec or a prototype's HTML.
 _Avoid_: option (that is a button on a question card), variant
+
+**Settle**:
+Recording the user's choice on a comparison with `settle_comparison`: the chosen alternative is marked and pinned to its decision node, every other one collapsed with the reason it lost (ADR 0021). Showing the comparison again re-opens it.
+_Avoid_: close, finalize, resolve (that is a decision node's status)
+
+**Choice pin**:
+The green dashed arrow labelled "chosen" from a decision node to the alternative chosen for it; how a choice is attached to its node.
+_Avoid_: link, thumbnail
+
+**Rejected alternative**:
+An alternative of a settled comparison that was not chosen: collapsed to its title bar, dimmed, with "Rejected: <reason>", its content kept inside as the record.
+_Avoid_: discarded, deleted variant
 
 **Difference**:
 A node or edge of an alternative that is not the same in all alternatives of its comparison: missing from one of them, or with another label or look. Matched by node id and by `from->to`; drawn in orange.

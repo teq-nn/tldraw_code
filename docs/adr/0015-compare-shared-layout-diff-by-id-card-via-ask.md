@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: accepted, extended by ADR 0020 (prototype items) and ADR 0021 (settling)
 ---
 
 # `compare`: frames side by side, one shared layout, differences by id, the card via `ask`

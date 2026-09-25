@@ -48,6 +48,9 @@ function startClient(handlers?: Partial<CommandHandlers>, statuses: BridgeStatus
 			'ask.show': () => {
 				throw new Error('not used in these tests')
 			},
+			'comparison.settle': () => {
+				throw new Error('not used in these tests')
+			},
 			'prototype.render': () => {
 				throw new Error('not used in these tests')
 			},

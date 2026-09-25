@@ -7,6 +7,7 @@ import {
 	CanvasShapeSchema,
 	PageBoxSchema,
 } from './canvas'
+import { SettleComparisonShape } from './compare'
 import { DiagramEdgeSchema, DiagramIdSchema, DiagramNodeSchema, MAX_COMPARE_ITEMS } from './diagram'
 import { DecisionNodeSchema, DependencyEdgeSchema } from './graph'
 import { PrototypeIdSchema, RenderPrototypeShape } from './prototype'
@@ -133,6 +134,21 @@ export const canvasCommands = {
 			iterationOf: PrototypeIdSchema.optional(),
 			width: RenderPrototypeShape.width,
 			height: RenderPrototypeShape.height,
+			/**
+			 * The prototype is alternative `index` of the comparison `id` (`compare`,
+			 * ADR 0020): a new one goes right of alternative `index - 1`, the first to
+			 * the right of the page content, and the question card goes below them.
+			 */
+			comparison: z
+				.object({
+					id: DiagramIdSchema,
+					index: z
+						.number()
+						.int()
+						.min(0)
+						.max(MAX_COMPARE_ITEMS - 1),
+				})
+				.optional(),
 		}),
 		result: z.object({
 			shapeId: z.string(),
@@ -145,6 +161,30 @@ export const canvasCommands = {
 			height: z.number(),
 			/** Shape id of the prototype this one iterates on, when given. */
 			iterationOfShapeId: z.string().optional(),
+		}),
+	},
+	/**
+	 * Settle a comparison after the user chose (ADR 0021): mark the chosen
+	 * alternative and pin it to its decision node with an arrow; collapse every
+	 * other alternative to its title bar, dimmed, with the reason it lost.
+	 * Idempotent; settling again with another choice re-opens the old one.
+	 */
+	'comparison.settle': {
+		payload: z.object({
+			id: SettleComparisonShape.id,
+			chosen: SettleComparisonShape.chosen,
+			rejected: SettleComparisonShape.rejected,
+			/** Decision node id to pin the chosen alternative to. */
+			node: DiagramIdSchema,
+		}),
+		result: z.object({
+			kind: z.enum(['diagram', 'prototype']),
+			/** Shape id of the chosen alternative's frame. */
+			chosenFrameId: z.string(),
+			/** Shape ids of the collapsed frames, in row order. */
+			rejectedFrameIds: z.array(z.string()),
+			/** Shape id of the arrow from the decision node, or null when the node is not on the canvas. */
+			pinId: z.string().nullable(),
 		}),
 	},
 	/**

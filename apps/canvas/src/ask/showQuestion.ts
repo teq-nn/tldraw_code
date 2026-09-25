@@ -1,6 +1,6 @@
 import type { CanvasCommandPayload, CanvasCommandResult } from '@tldraw-code/protocol'
 import { Box, createShapeId, type Editor, type TLShape, type TLShapeId } from 'tldraw'
-import { getDiagramFrames } from '../diagram/renderDiagrams'
+import { getComparisonFrames } from '../comparison/comparisonFrames'
 import {
 	estimateCardHeight,
 	QUESTION_CARD_TYPE,
@@ -75,10 +75,12 @@ function placeCard(
 	h: number,
 	comparison: string | undefined,
 ) {
-	// A comparison's question goes right under its frames (ADR 0015).
-	const frames = comparison ? getDiagramFrames(editor, 'comparison', comparison) : []
+	// A comparison's question goes right under its frames, diagrams or prototypes (ADR 0015, ADR 0020).
+	const frames = comparison ? getComparisonFrames(editor, comparison) : []
 	const framesBounds =
-		frames.length > 0 ? editor.getShapesPageBounds(frames.map((frame) => frame.id)) : undefined
+		frames.length > 0
+			? editor.getShapesPageBounds(frames.map((frame) => frame.shape.id))
+			: undefined
 	if (framesBounds) {
 		return {
 			x: Math.round(framesBounds.center.x - QUESTION_CARD_WIDTH / 2),

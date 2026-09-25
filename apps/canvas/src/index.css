@@ -231,3 +231,24 @@
 	color: var(--tl-color-text-3, #666);
 	font-size: 13px;
 }
+
+/* Settled comparisons (ADR 0021): the chosen prototype in green, rejected ones grey and collapsed. */
+
+.prototype-frame--chosen {
+	box-shadow:
+		0 0 0 3px hsl(134, 55%, 40%),
+		var(--tl-shadow-2);
+}
+
+.prototype-frame--chosen .prototype-frame__kind {
+	color: hsl(134, 55%, 32%);
+}
+
+.prototype-frame--rejected {
+	box-shadow: 0 0 0 2px hsl(220, 6%, 60%);
+	background: hsl(220, 10%, 96%);
+}
+
+.prototype-frame--rejected .prototype-frame__kind {
+	color: hsl(220, 6%, 45%);
+}

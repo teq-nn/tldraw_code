@@ -6,6 +6,13 @@ import {
 } from '@tldraw-code/protocol'
 import { Box, createShapeId, type Editor, type TLShapeId } from 'tldraw'
 import {
+	choiceOf,
+	getComparisonFrames,
+	type PrototypeComparisonMeta,
+	UNSETTLED,
+	unpinComparison,
+} from '../comparison/comparisonFrames'
+import {
 	isPrototypeFrame,
 	PROTOTYPE_FRAME_TYPE,
 	PROTOTYPE_HEADER_HEIGHT,
@@ -56,7 +63,15 @@ export function renderPrototype(editor: Editor, payload: RenderPayload): RenderR
 		)
 	}
 
-	const current = existing ? viewportOf(existing) : undefined
+	// A collapsed (rejected) alternative shown again gets its full size back (ADR 0021).
+	const settled = existing ? choiceOf(existing) : undefined
+	const current = existing
+		? viewportOf(
+				settled?.choice === 'rejected'
+					? { ...existing, props: { ...existing.props, h: settled.expandedH } }
+					: existing,
+			)
+		: undefined
 	const width = payload.width ?? current?.width ?? DEFAULT_PROTOTYPE_WIDTH
 	const height = payload.height ?? current?.height ?? DEFAULT_PROTOTYPE_HEIGHT
 	const props = {
@@ -69,14 +84,29 @@ export function renderPrototype(editor: Editor, payload: RenderPayload): RenderR
 		h: height + PROTOTYPE_HEADER_HEIGHT,
 	}
 
+	const comparison: PrototypeComparisonMeta | undefined = payload.comparison && {
+		comparisonId: payload.comparison.id,
+		comparisonIndex: payload.comparison.index,
+	}
+	// Rendering resets any earlier choice on this prototype; a comparison shown again is open again.
+	const meta = { ...UNSETTLED, ...(comparison ?? {}) }
+
 	editor.run(() => {
+		if (comparison) unpinComparison(editor, comparison.comparisonId)
 		if (existing) {
-			editor.updateShape<PrototypeFrameShape>({ id: shapeId, type: PROTOTYPE_FRAME_TYPE, props })
+			editor.updateShape<PrototypeFrameShape>({
+				id: shapeId,
+				type: PROTOTYPE_FRAME_TYPE,
+				opacity: 1,
+				props,
+				meta,
+			})
 			return
 		}
 		const size = { w: props.w, h: props.h }
-		const position = isPrototypeFrame(source)
-			? besideSource(editor, source, size)
+		const left = comparison ? previousAlternative(editor, comparison) : source
+		const position = isPrototypeFrame(left)
+			? besideSource(editor, left, size)
 			: newOrigin(editor, size)
 		editor.createShape<PrototypeFrameShape>({
 			id: shapeId,
@@ -84,6 +114,7 @@ export function renderPrototype(editor: Editor, payload: RenderPayload): RenderR
 			x: position.x,
 			y: position.y,
 			props,
+			meta,
 		})
 	})
 
@@ -106,6 +137,16 @@ export function renderPrototype(editor: Editor, payload: RenderPayload): RenderR
 		height,
 		...(isPrototypeFrame(source) ? { iterationOfShapeId: source.id } : {}),
 	}
+}
+
+/** The prototype right before alternative `comparisonIndex` in its comparison's row (ADR 0020). */
+function previousAlternative(editor: Editor, comparison: PrototypeComparisonMeta) {
+	if (comparison.comparisonIndex === 0) return undefined
+	return getComparisonFrames(editor, comparison.comparisonId)
+		.filter((frame) => frame.index < comparison.comparisonIndex)
+		.map((frame) => frame.shape)
+		.filter(isPrototypeFrame)
+		.at(-1)
 }
 
 /** Right of the source prototype, top-aligned, past every top-level shape in the way. */

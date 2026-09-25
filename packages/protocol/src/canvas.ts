@@ -41,6 +41,7 @@ export const ShapeRoleSchema = z.enum([
 	'diagram_node',
 	'diagram_edge',
 	'prototype_frame',
+	'choice_pin',
 	'sticky_note',
 	'drawing',
 	'text',
@@ -128,6 +129,18 @@ export const CanvasShapeSchema = z.object({
 			/** Viewport size in CSS px. */
 			width: z.number(),
 			height: z.number(),
+			/** Id of the comparison it is an alternative of (`compare`, ADR 0020). */
+			comparison: z.string().optional(),
+		})
+		.optional(),
+	/**
+	 * An alternative of a settled comparison (ADR 0021): chosen, or rejected
+	 * (collapsed to its title bar) with the reason it lost.
+	 */
+	choice: z
+		.object({
+			state: z.enum(['chosen', 'rejected']),
+			reason: z.string().optional(),
 		})
 		.optional(),
 	/** Arrow / dependency: ids of the shapes its ends are bound to. */
