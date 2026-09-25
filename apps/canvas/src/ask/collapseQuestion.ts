@@ -5,6 +5,7 @@ import {
 	type TLNoteShape,
 	type TLShapeId,
 } from 'tldraw'
+import { agentNoteMeta } from '../note/renderNote'
 import type { QuestionCardShape } from './QuestionCardShapeUtil'
 import { questionCardId } from './showQuestion'
 import { NOTE_REACH } from './watchQuestionCards'
@@ -30,7 +31,7 @@ function findAnswerNotes(editor: Editor, card: QuestionCardShape): TLShapeId[] {
 	if (!reach) return []
 	return editor
 		.getCurrentPageShapes()
-		.filter((shape): shape is TLNoteShape => shape.type === 'note')
+		.filter((shape): shape is TLNoteShape => shape.type === 'note' && !agentNoteMeta(shape.meta))
 		.filter((note) => {
 			const bounds = editor.getShapePageBounds(note.id)
 			const text = renderPlaintextFromRichText(editor, note.props.richText).trim().slice(0, 2000)

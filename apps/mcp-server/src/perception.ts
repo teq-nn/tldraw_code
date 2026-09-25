@@ -20,7 +20,7 @@ const ROLE_NAMES: Record<ShapeRole, [singular: string, plural: string]> = {
 	diagram_edge: ['diagram edge', 'diagram edges'],
 	prototype_frame: ['prototype', 'prototypes'],
 	choice_pin: ['choice pin', 'choice pins'],
-	agent_note: ['your note', 'your notes'],
+	agent_note: ['agent note', 'agent notes'],
 	sticky_note: ['sticky note', 'sticky notes'],
 	drawing: ['drawing', 'drawings'],
 	text: ['text', 'texts'],

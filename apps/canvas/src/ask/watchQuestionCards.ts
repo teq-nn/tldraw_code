@@ -6,6 +6,7 @@ import {
 	type TLNoteShape,
 	type TLShapeId,
 } from 'tldraw'
+import { agentNoteMeta } from '../note/renderNote'
 import { answerQuestionCard, type QuestionCardShape } from './QuestionCardShapeUtil'
 import { getQuestionCards, isQuestionCard } from './showQuestion'
 
@@ -78,7 +79,8 @@ export function watchQuestionCards(editor: Editor, onAnswer: AnswerListener): ()
 
 	const cleanups = [
 		editor.sideEffects.registerAfterCreateHandler('shape', (shape) => {
-			if (shape.type !== 'note') return
+			// Claude's own notes (ADR 0025) never answer a question.
+			if (shape.type !== 'note' || agentNoteMeta(shape.meta)) return
 			if (getQuestionCards(editor).some((c) => c.props.answerKind === 'none')) {
 				candidates.add(shape.id)
 				checkNotes()

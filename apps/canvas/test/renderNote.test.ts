@@ -9,6 +9,8 @@ import {
 	toRichText,
 } from 'tldraw'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { getQuestionCards } from '../src/ask/showQuestion'
+import { watchQuestionCards } from '../src/ask/watchQuestionCards'
 import { createCommandHandlers } from '../src/bridge/commandHandlers'
 import { AGENT_NOTE_GAP, agentNoteShapeId } from '../src/note/renderNote'
 import { ActivityTracker } from '../src/perception/activity'
@@ -150,5 +152,20 @@ describe('note.render', () => {
 		activity.reset()
 		editor.deleteShape(result.shapeId as TLShapeId)
 		expect(activity.snapshot()).toMatchObject({ removed: 1 })
+	})
+
+	it('is never taken for the user’s note answer to a waiting question card', async () => {
+		const answers: unknown[] = []
+		const stop = watchQuestionCards(editor, (_askId, answer) => answers.push(answer))
+		const card = await handlers['ask.show']({
+			askId: 'q1',
+			question: 'Which flow?',
+			options: ['Direct', 'Queued'],
+			recommendation: 1,
+		})
+		await handlers['note.render']({ text: 'Queued, I think.', replyTo: card.shapeId })
+		stop()
+		expect(answers).toEqual([])
+		expect(getQuestionCards(editor)[0]?.props.answerKind).toBe('none')
 	})
 })

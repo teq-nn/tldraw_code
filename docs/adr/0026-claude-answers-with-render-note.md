@@ -15,6 +15,7 @@ ADR 0024 lets the user address Claude with `&agent` in a sticky note, but Claude
 - **Placement.** With `replyTo`, right of the target, top-aligned, and down past every top-level shape in the way (previous replies included). Without it, right of the page content. The canvas zooms to a new note that is out of view. An unknown `replyTo` fails the command with a clear message. No arrow: the note stands right next to what it answers.
 - **Role `agent_note`** (protocol `ShapeRole`, `roleOf`). `read_canvas` lists the note under "Your shapes" with its text minus the label; it counts as a Claude shape, so it is never an annotation anchor and never in "User's shapes".
 - **No trigger loop.** The note is created inside `asClaude`, so it is not user activity. `ActivityTracker.invocations()` only looks at notes of role `sticky_note`, so a Claude note whose text contains `&agent` never counts as an invocation. The user moving or deleting it is activity, as for any Claude shape.
+- **Never a question answer.** The question-card watcher (ADR 0007) and the card's collapse skip agent notes, so a note placed next to a waiting card is not taken for the user's note answer.
 - **The server instructions** tell Claude to answer `&agent` notes with `render_note` and `replyTo`, not only in the terminal.
 
 ## Considered Options
