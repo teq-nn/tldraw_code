@@ -1,14 +1,24 @@
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { DEFAULT_BRIDGE_PORT } from '@tldraw-code/protocol'
 import { CanvasBridge } from './bridge'
-import { startDesktopBackend } from './desktop'
+import { createDesktopReadiness, DesktopCanvasBridge } from './desktop'
 import { createMcpServer } from './server'
 
 // stdout is reserved for the MCP stdio transport; all diagnostics go to stderr.
 const log = (message: string) => process.stderr.write(`[tldraw-canvas] ${message}\n`)
 
 const port = Number(process.env.CANVAS_BRIDGE_PORT ?? DEFAULT_BRIDGE_PORT)
-const bridge = new CanvasBridge({ port, log })
+const desktopBackend = process.env.CANVAS_BACKEND === 'desktop'
+// CANVAS_BACKEND=desktop (ticket #16): the canvas runs as a tldraw offline
+// board script instead of the Vite app. The protocol and the WebSocket
+// server below are unchanged either way — DesktopCanvasBridge only wraps
+// `request` to keep the installed script current and the file saved
+// (ticket #17); it is the board script that connects, exactly like the
+// Vite canvas does over ws://127.0.0.1:<CANVAS_BRIDGE_PORT>.
+const desktopReadiness = desktopBackend ? createDesktopReadiness({ log }) : undefined
+const bridge = desktopReadiness
+	? new DesktopCanvasBridge({ port, log, readiness: desktopReadiness })
+	: new CanvasBridge({ port, log })
 
 try {
 	await bridge.start()
@@ -20,19 +30,19 @@ try {
 	)
 }
 
-// CANVAS_BACKEND=desktop (ticket #16): the canvas runs as a tldraw offline
-// board script instead of the Vite app. The bridge above is unchanged
-// either way — it is the board script that connects to it, exactly like the
-// Vite canvas does over ws://127.0.0.1:<CANVAS_BRIDGE_PORT>.
-if (process.env.CANVAS_BACKEND === 'desktop') {
+if (desktopReadiness) {
 	try {
-		const installed = await startDesktopBackend({ log })
+		// Same install `DesktopCanvasBridge` runs lazily before every command (ticket #17):
+		// doing it eagerly here just means the very first tool call doesn't pay for it, and a
+		// stale bundle from a previous session is caught before Claude asks for anything.
+		const installed = await desktopReadiness.ensureInstalled()
 		log(
 			`tldraw offline: installed the board script into "${installed.docName}" ` +
 				`(${installed.filePath ?? installed.docId}); it will connect to this bridge on its own`,
 		)
 	} catch (error) {
-		// Keep serving MCP: tools still work once the user installs or reconnects the canvas by hand.
+		// Keep serving MCP: the first tool call retries the install and reports a clear
+		// error itself (ticket #17) if tldraw offline still isn't reachable by then.
 		log(
 			`could not install the canvas as a tldraw offline board script: ${(error as Error).message}`,
 		)

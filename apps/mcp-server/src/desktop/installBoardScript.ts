@@ -1,6 +1,6 @@
 import { writeFile as writeFileToDisk } from 'node:fs/promises'
 import path from 'node:path'
-import type { AgentApi, ScriptStatus, TldrawOfflineDoc } from './agentApiClient'
+import type { AgentApi, ScriptStatus, ScriptWorkspace, TldrawOfflineDoc } from './agentApiClient'
 
 export interface BoardScriptBundle {
 	/** `config.js`: registers the shapes, the TopPanel (bridge pill) and `getShapeVisibility`. */
@@ -32,8 +32,8 @@ export interface InstallBoardScriptResult {
 	filePath: string | null
 }
 
-const DEFAULT_POLL_INTERVAL_MS = 300
-const DEFAULT_TIMEOUT_MS = 10_000
+export const DEFAULT_POLL_INTERVAL_MS = 300
+export const DEFAULT_TIMEOUT_MS = 10_000
 
 /**
  * Find or create the session document via the Agent API and install the
@@ -56,25 +56,62 @@ export async function installBoardScript(
 	log(`using session document "${doc.name}" (${doc.id})`)
 
 	const workspace = await client.scriptWorkspace(doc.id)
-	const configJsPath = path.join(path.dirname(workspace.mainJsPath), 'config.js')
 	// This document is this tool's own session document (found or created above), not a
 	// canvas the user hand-edits scripts on, so always installing the latest built bundle
 	// is correct here — unlike the general agent guidance to extend, not clobber.
-	await writeFile(workspace.mainJsPath, bundle.mainJs)
-	await writeFile(configJsPath, bundle.configJs)
-	log(`wrote board script to ${workspace.scriptDir}`)
-
-	await waitForApplied(client, doc.id, {
+	await writeAndApply(client, doc, workspace, bundle, {
+		writeFile,
+		sleep,
+		log,
 		pollIntervalMs: options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS,
 		timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
-		sleep,
 	})
-	log('board script applied')
+
+	return { docId: doc.id, docName: doc.name, filePath: doc.filePath }
+}
+
+export interface WriteAndApplyOptions {
+	writeFile: (path: string, content: string) => Promise<void>
+	sleep: (ms: number) => Promise<void>
+	log: (message: string) => void
+	pollIntervalMs: number
+	timeoutMs: number
+}
+
+/**
+ * `config.js`'s sibling path next to `main.js` in a script workspace — the
+ * two always live side by side (verified against the running app).
+ */
+export function configJsPathOf(workspace: ScriptWorkspace): string {
+	return path.join(path.dirname(workspace.mainJsPath), 'config.js')
+}
+
+/**
+ * Write `config.js` and `main.js` to a resolved script workspace, wait for
+ * the watcher to apply them, then save. Shared by {@link installBoardScript}
+ * (always writes, ticket #16) and the desktop backend's per-tool-call
+ * readiness check (writes only when the installed bundle differs, ticket #17).
+ */
+export async function writeAndApply(
+	client: AgentApi,
+	doc: TldrawOfflineDoc,
+	workspace: ScriptWorkspace,
+	bundle: BoardScriptBundle,
+	options: WriteAndApplyOptions,
+): Promise<void> {
+	await options.writeFile(workspace.mainJsPath, bundle.mainJs)
+	await options.writeFile(configJsPathOf(workspace), bundle.configJs)
+	options.log(`wrote board script to ${workspace.scriptDir}`)
+
+	await waitForApplied(client, doc.id, {
+		pollIntervalMs: options.pollIntervalMs,
+		timeoutMs: options.timeoutMs,
+		sleep: options.sleep,
+	})
+	options.log('board script applied')
 
 	// Installing the script marks the document unsaved; saving is our job (only for a local doc).
 	await client.exec(doc.id, 'await helpers.saveDoc()')
-
-	return { docId: doc.id, docName: doc.name, filePath: doc.filePath }
 }
 
 /**
@@ -83,7 +120,7 @@ export async function installBoardScript(
  * extension regardless of how the document was named (verified against the
  * running app), so both sides are compared with it stripped.
  */
-async function findOrCreateDoc(
+export async function findOrCreateDoc(
 	client: AgentApi,
 	name: string,
 	directory: string | undefined,
