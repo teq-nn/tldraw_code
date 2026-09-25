@@ -9,7 +9,7 @@ const LABELS: Record<BridgeStatus, string> = {
 const WORKING_LABEL = 'Claude is working…'
 
 /**
- * `working` (ADR 0025): Claude got a channel push and has not yet reacted.
+ * `working` (ADR 0025): Claude got a channel push and its turn has not ended.
  * Only shown while connected, since a dead bridge cannot say Claude is busy.
  */
 export function BridgeStatusPill({

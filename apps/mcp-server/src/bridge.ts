@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
-import type { IncomingMessage } from 'node:http'
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import {
+	AGENT_STOP_PATH,
 	type BridgeError,
 	BridgeErrorCode,
 	type CanvasCommandName,
@@ -55,11 +56,13 @@ const DEFAULT_REQUEST_TIMEOUT_MS = 10_000
  */
 export class CanvasBridge {
 	private readonly options: Required<CanvasBridgeOptions>
+	private http: Server | undefined
 	private wss: WebSocketServer | undefined
 	private canvas: WebSocket | undefined
 	private startError: string | undefined
 	private readonly pending = new Map<string, PendingRequest>()
 	private readonly eventListeners = new Set<(event: EventEnvelope) => void>()
+	private readonly stopListeners = new Set<() => void>()
 
 	constructor(options: CanvasBridgeOptions) {
 		this.options = {
@@ -73,37 +76,45 @@ export class CanvasBridge {
 	/** Start listening. Resolves with the bound port. */
 	start(): Promise<number> {
 		return new Promise((resolve, reject) => {
+			// One port for both: the canvas connects by WebSocket, the Claude Code `Stop` hook POSTs (ADR 0025).
+			const http = createServer((req, res) => this.handleHttp(req, res))
 			const wss = new WebSocketServer({
-				host: this.options.host,
-				port: this.options.port,
+				server: http,
 				verifyClient: ({ req }: { req: IncomingMessage }) => isAllowedOrigin(req.headers.origin),
 			})
+			// ws re-emits the HTTP server's errors; they are handled on `http` below.
+			wss.on('error', () => {})
 			const onStartError = (error: Error) => {
 				this.startError = `the bridge could not listen on port ${this.options.port} (${error.message})`
 				reject(error)
 			}
-			wss.once('error', onStartError)
-			wss.once('listening', () => {
-				wss.off('error', onStartError)
-				wss.on('error', (error) => this.options.log(`bridge error: ${error.message}`))
-				const address = wss.address()
+			http.once('error', onStartError)
+			http.once('listening', () => {
+				http.off('error', onStartError)
+				http.on('error', (error) => this.options.log(`bridge error: ${error.message}`))
+				const address = http.address()
 				const port = typeof address === 'object' && address ? address.port : this.options.port
 				this.options.log(`bridge listening on ws://${this.options.host}:${port}`)
 				resolve(port)
 			})
 			wss.on('connection', (socket) => this.attach(socket))
+			this.http = http
 			this.wss = wss
+			http.listen(this.options.port, this.options.host)
 		})
 	}
 
 	async stop(): Promise<void> {
 		this.rejectAll({ code: BridgeErrorCode.Disconnected, message: 'Bridge is shutting down' })
-		const wss = this.wss
+		const { http, wss } = this
+		this.http = undefined
 		this.wss = undefined
 		this.canvas = undefined
-		if (!wss) return
+		if (!http || !wss) return
 		for (const client of wss.clients) client.terminate()
 		await new Promise<void>((resolve) => wss.close(() => resolve()))
+		http.closeAllConnections()
+		await new Promise<void>((resolve) => http.close(() => resolve()))
 	}
 
 	isConnected(): boolean {
@@ -114,6 +125,15 @@ export class CanvasBridge {
 	onEvent(listener: (event: EventEnvelope) => void): () => void {
 		this.eventListeners.add(listener)
 		return () => this.eventListeners.delete(listener)
+	}
+
+	/**
+	 * Subscribe to the end of a Claude Code turn, reported by its `Stop` hook
+	 * with a POST to {@link AGENT_STOP_PATH}. Returns an unsubscribe function.
+	 */
+	onAgentStop(listener: () => void): () => void {
+		this.stopListeners.add(listener)
+		return () => this.stopListeners.delete(listener)
 	}
 
 	/**
@@ -167,6 +187,20 @@ export class CanvasBridge {
 			})
 			canvas.send(encodeEnvelope(makeCommand(id, name, payload)))
 		})
+	}
+
+	private handleHttp(req: IncomingMessage, res: ServerResponse): void {
+		// Same rule as the WebSocket: only this machine's own pages may drive the bridge.
+		if (!isAllowedOrigin(req.headers.origin)) {
+			res.writeHead(403).end()
+			return
+		}
+		if (req.method !== 'POST' || req.url !== AGENT_STOP_PATH) {
+			res.writeHead(404).end()
+			return
+		}
+		res.writeHead(204).end()
+		for (const listener of this.stopListeners) listener()
 	}
 
 	private attach(socket: WebSocket): void {

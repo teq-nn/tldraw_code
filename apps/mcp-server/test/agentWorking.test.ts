@@ -1,6 +1,6 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
-import { type CanvasActivity, makeOkResult } from '@tldraw-code/protocol'
+import { AGENT_STOP_PATH, type CanvasActivity, makeOkResult } from '@tldraw-code/protocol'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { CanvasBridge } from '../src/bridge'
 import { createMcpServer } from '../src/server'
@@ -8,9 +8,10 @@ import { FakeCanvas } from './fakeCanvas'
 import { ManualClock, waitFor } from './timing'
 
 // The "Claude is working" signal (ADR 0025) through the public seam: `canvas.activity`
-// events in, `agent.working` events out to a fake canvas tab, tool calls from an MCP client.
+// events in, `agent.working` events out to a fake canvas tab, tool calls from an MCP client,
+// and the Claude Code `Stop` hook as an HTTP POST to the bridge.
 
-const WORKING_TIMEOUT_MS = 60_000
+const WORKING_TIMEOUT_MS = 120_000
 
 let bridge: CanvasBridge
 let client: Client
@@ -67,6 +68,15 @@ async function readCanvas() {
 	await client.callTool({ name: 'read_canvas', arguments: { screenshot: false } })
 }
 
+/** What the Claude Code `Stop` hook does when a turn ends (`.claude/settings.json`). */
+const stopHook = (headers: Record<string, string> = {}) =>
+	fetch(`http://127.0.0.1:${port}${AGENT_STOP_PATH}`, { method: 'POST', headers })
+
+/** Let the flag and the socket settle after something that must NOT change it. */
+async function settle() {
+	for (let i = 0; i < 5; i++) await new Promise((resolve) => setTimeout(resolve, 10))
+}
+
 describe('agent working signal', () => {
 	it('tells the canvas Claude is working once a push went out', async () => {
 		await invoke()
@@ -77,44 +87,35 @@ describe('agent working signal', () => {
 		canvas.sendEvent('canvas.activity', { added: { sticky_note: 1 }, changed: 0, removed: 0 })
 		canvas.sendEvent('canvas.activity', { added: {}, changed: 2, removed: 0 })
 		await readCanvas()
+		await stopHook()
 		clock.advance(WORKING_TIMEOUT_MS)
+		await settle()
 		expect(workingEvents()).toEqual([])
 	})
 
-	it('stops when Claude reads the canvas', async () => {
+	it('stops when the Claude Code turn ends (Stop hook)', async () => {
+		await invoke()
+		const response = await stopHook()
+		expect(response.status).toBe(204)
+		await waitFor(() => workingEvents().length === 2, 'the idle event')
+		expect(workingEvents()).toEqual([true, false])
+	})
+
+	it('keeps going through canvas tool calls, which are not the final answer', async () => {
 		await invoke()
 		await readCanvas()
-		await waitFor(() => workingEvents().length === 2, 'the idle event')
-		expect(workingEvents()).toEqual([true, false])
-	})
-
-	it('stops when any other canvas tool has delivered its result', async () => {
-		await invoke()
 		canvas.respondWith((command) => makeOkResult(command.id, { shapeId: 'shape:fake' }))
 		await client.callTool({ name: 'canvas_smoke_test', arguments: {} })
-		await waitFor(() => workingEvents().length === 2, 'the idle event')
-		expect(workingEvents()).toEqual([true, false])
-	})
-
-	it('stops when read_canvas fails', async () => {
-		await invoke()
 		canvas.failWith('handler_failed', 'boom')
-		const result = await client.callTool({ name: 'read_canvas', arguments: { screenshot: false } })
-		expect(result.isError).toBe(true)
+		await client.callTool({ name: 'canvas_smoke_test', arguments: {} })
+		await settle()
+		expect(workingEvents()).toEqual([true])
+		await stopHook()
 		await waitFor(() => workingEvents().length === 2, 'the idle event')
 		expect(workingEvents()).toEqual([true, false])
 	})
 
-	it('stops when a canvas tool fails', async () => {
-		await invoke()
-		canvas.failWith('handler_failed', 'boom')
-		const result = await client.callTool({ name: 'canvas_smoke_test', arguments: {} })
-		expect(result.isError).toBe(true)
-		await waitFor(() => workingEvents().length === 2, 'the idle event')
-		expect(workingEvents()).toEqual([true, false])
-	})
-
-	it('stops after the timeout when Claude makes no canvas call', async () => {
+	it('stops after the timeout when no Stop hook and no canvas call arrives', async () => {
 		await invoke()
 		clock.advance(WORKING_TIMEOUT_MS - 1)
 		expect(workingEvents()).toEqual([true])
@@ -123,12 +124,32 @@ describe('agent working signal', () => {
 		expect(workingEvents()).toEqual([true, false])
 	})
 
-	it('does not fire the timeout after Claude already finished', async () => {
+	it('counts a canvas tool call as a sign of life that restarts the timeout', async () => {
 		await invoke()
+		clock.advance(WORKING_TIMEOUT_MS - 1)
 		await readCanvas()
+		clock.advance(WORKING_TIMEOUT_MS - 1)
+		expect(workingEvents()).toEqual([true])
+		clock.advance(1)
+		await waitFor(() => workingEvents().length === 2, 'the idle event')
+	})
+
+	it('does not fire the timeout after the turn already ended', async () => {
+		await invoke()
+		await stopHook()
 		await waitFor(() => workingEvents().length === 2, 'the idle event')
 		clock.advance(WORKING_TIMEOUT_MS)
+		await settle()
 		expect(workingEvents()).toEqual([true, false])
+	})
+
+	it('ignores stop requests from web pages and unknown requests', async () => {
+		await invoke()
+		expect((await stopHook({ Origin: 'https://evil.example' })).status).toBe(403)
+		expect((await fetch(`http://127.0.0.1:${port}${AGENT_STOP_PATH}`)).status).toBe(404)
+		expect((await fetch(`http://127.0.0.1:${port}/other`, { method: 'POST' })).status).toBe(404)
+		await settle()
+		expect(workingEvents()).toEqual([true])
 	})
 
 	it('restarts the timeout on a second push', async () => {

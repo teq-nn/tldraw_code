@@ -291,5 +291,11 @@ export const BridgeErrorCode = {
 
 export type BridgeErrorCode = (typeof BridgeErrorCode)[keyof typeof BridgeErrorCode]
 
+/**
+ * Path the bridge accepts a POST on when Claude Code's turn has ended (ADR 0025).
+ * A Claude Code `Stop` hook calls it; the bridge answers 204.
+ */
+export const AGENT_STOP_PATH = '/agent/stop'
+
 /** Default port of the bridge's WebSocket server. Override with CANVAS_BRIDGE_PORT. */
 export const DEFAULT_BRIDGE_PORT = 4477

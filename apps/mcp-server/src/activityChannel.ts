@@ -14,8 +14,11 @@ export const CHANNEL_CAPABILITIES = { experimental: { 'claude/channel': {} } }
 
 export const CHANNEL_NOTIFICATION = 'notifications/claude/channel'
 
-/** How long Claude counts as working after a push when it makes no canvas tool call (ADR 0025). */
-export const DEFAULT_WORKING_TIMEOUT_MS = 60_000
+/**
+ * How long Claude counts as working without a sign of life (a push or a canvas
+ * tool call) when no `Stop` hook reports the end of its turn (ADR 0025).
+ */
+export const DEFAULT_WORKING_TIMEOUT_MS = 120_000
 
 export interface ActivityChannelOptions {
 	/** Time source of the working timeout; real timers by default. */
@@ -39,9 +42,11 @@ export type ChannelPush = (content: string, meta: Record<string, string>) => Pro
  *   same digest (ADR 0009), and a pending `ask` gets its answer on its own.
  * - The same digest is never reported twice: not after a tool result carried
  *   it, and not twice in a row. `read_canvas` starts afresh.
- * - Claude counts as working (ADR 0025) from a push until it has made a canvas
- *   tool call, or until a timeout when it makes none. The canvas is told on
- *   every change, and again when a tab connects in the middle of it.
+ * - Claude counts as working (ADR 0025) from a push until Claude Code's `Stop`
+ *   hook reports the end of its turn (the bridge's `onAgentStop`), or, when no
+ *   hook is installed, until a timeout without a sign of life. Canvas tool
+ *   calls are signs of life, not the end: the answer comes after them. The
+ *   canvas is told on every change, and again when a tab connects mid-way.
  */
 export class ActivityChannel {
 	/** The digest Claude last got, by tool result or push; cleared when it reads the canvas. */
@@ -61,6 +66,7 @@ export class ActivityChannel {
 		this.clock = options.clock ?? SYSTEM_CLOCK
 		this.workingTimeoutMs = options.workingTimeoutMs ?? DEFAULT_WORKING_TIMEOUT_MS
 		this.log = options.log ?? (() => {})
+		bridge.onAgentStop(() => this.stopWorking())
 		bridge.onEvent((event) => {
 			if (event.name === 'hello' && this.working) {
 				bridge.sendEvent('agent.working', { working: true })
@@ -97,9 +103,9 @@ export class ActivityChannel {
 		this.lastReported = undefined
 	}
 
-	/** A canvas tool call has delivered its result, or failed: Claude has reacted (ADR 0025). */
+	/** A canvas tool call has delivered its result, or failed: Claude is alive and going on (ADR 0025). */
 	delivered(): void {
-		this.stopWorking()
+		if (this.working) this.armWorkingTimer()
 	}
 
 	private receive(activity: CanvasActivity): void {
@@ -118,9 +124,13 @@ export class ActivityChannel {
 	}
 
 	private startWorking(): void {
+		this.armWorkingTimer()
+		this.setWorking(true)
+	}
+
+	private armWorkingTimer(): void {
 		this.clock.clearTimeout(this.workingTimer)
 		this.workingTimer = this.clock.setTimeout(() => this.stopWorking(), this.workingTimeoutMs)
-		this.setWorking(true)
 	}
 
 	private stopWorking(): void {

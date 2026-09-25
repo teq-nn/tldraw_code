@@ -83,7 +83,7 @@ export interface McpServerOptions {
 	ask?: Partial<AskTimings>
 	/** Time source of `ask`'s timeout and heartbeat; real timers by default (tests pass a manual clock). */
 	clock?: AskClock
-	/** How long the canvas shows Claude as working after a channel push when it makes no canvas call (ADR 0025). */
+	/** How long the canvas shows Claude as working without a sign of life when no `Stop` hook ends it (ADR 0025). */
 	workingTimeoutMs?: number
 	/** Diagnostic logger; must not write to stdout. */
 	log?: (message: string) => void
